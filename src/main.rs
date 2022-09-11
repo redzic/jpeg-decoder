@@ -20,6 +20,19 @@ fn slice<T, const N: usize>(x: &[T]) -> &[T; N] {
 
 struct JpegDecoder {}
 
+fn get_jpeg_segment_name(marker: u16) -> &'static str {
+    match marker {
+        0xffd8 => "Start of Image",
+        0xffe0 => "Application Default Header",
+        0xffdb => "Quantization Table",
+        0xffc0 => "Start of Frame",
+        0xffc4 => "Define Huffman Table",
+        0xffda => "Start of Scan",
+        0xffd9 => "End of Image",
+        _ => unreachable!(),
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
     // TODO incrementally read the file
     // let bytes = fs::read("./out.jpg").unwrap();
@@ -28,16 +41,6 @@ fn main() -> Result<(), std::io::Error> {
     let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
     // let header = slice::<_, 2>(&bytes);
-
-    let mut map: HashMap<u16, &'static str> = HashMap::new();
-
-    map.insert(0xffd8, "Start of Image");
-    map.insert(0xffe0, "Application Default Header");
-    map.insert(0xffdb, "Quantization Table");
-    map.insert(0xffc0, "Start of Frame");
-    map.insert(0xffc4, "Define Huffman Table");
-    map.insert(0xffda, "Start of Scan");
-    map.insert(0xffd9, "End of Image");
 
     let mut buf = [0; 2];
 
@@ -52,7 +55,7 @@ fn main() -> Result<(), std::io::Error> {
 
         let marker = u16::from_be_bytes(buf);
 
-        println!("{}", map[&marker]);
+        println!("{}", get_jpeg_segment_name(marker));
 
         match marker {
             // start of sequence
