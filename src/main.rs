@@ -29,7 +29,7 @@ fn get_jpeg_segment_name(marker: u16) -> &'static str {
         0xffc4 => "Define Huffman Table",
         0xffda => "Start of Scan",
         0xffd9 => "End of Image",
-        _ => unreachable!(),
+        _ => panic!("invalid jpeg marker"),
     }
 }
 
