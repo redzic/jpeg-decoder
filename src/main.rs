@@ -54,6 +54,12 @@ fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
     Ok(buf[0])
 }
 
+fn print_8x8_quant_table(x: &[u8; 64]) {
+    for chunk in x.chunks_exact(8) {
+        println!("{chunk:?}");
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
     let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
@@ -121,6 +127,21 @@ fn main() -> Result<(), std::io::Error> {
                 println!("Units:        {units} (dpi)");
                 println!("Density:      {dx}x{dy}");
                 println!("Thumbnail:    {tx}x{ty}\n");
+            }
+            JPEG_QUANTIZATION_TABLE => {
+                let len = read_u16(&mut reader)? as usize - 3;
+
+                // Umm.. isn't the length just always 64, when you subtract the destination byte?
+                assert!(len == 64);
+
+                let dst = read_u8(&mut reader)?;
+
+                let mut quant_table = [0; 8 * 8];
+
+                reader.read_exact(&mut quant_table)?;
+
+                dbg!(dst);
+                print_8x8_quant_table(&quant_table);
             }
             _ => {
                 // read another BE u16, which indicates the length
