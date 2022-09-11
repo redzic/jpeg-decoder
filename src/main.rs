@@ -105,6 +105,16 @@ fn main() -> Result<(), std::io::Error> {
                 // Thumbnail information
                 let tx = read_u8(&mut reader)?;
                 let ty = read_u8(&mut reader)?;
+
+                let s = std::str::from_utf8(&null_str[..null_str.len() - 1])
+                    .expect("Invalid UTF-8 in Application Default Header identifier");
+
+                println!();
+                println!("Identifier:   {s}");
+                println!("Version:      {v_maj}.{v_min}");
+                println!("Units:        {units} (dpi)");
+                println!("Density:      {dx}x{dy}");
+                println!("Thumbnail:    {tx}x{ty}\n");
             }
             _ => {
                 // read another BE u16, which indicates the length
