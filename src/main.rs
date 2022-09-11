@@ -60,6 +60,14 @@ fn print_8x8_quant_table(x: &[u8; 64]) {
     }
 }
 
+fn print_dst_quant_table(dst: u8) {
+    match dst {
+        0 => println!("0 - luminance"),
+        1 => println!("1 - chrominance"),
+        _ => unreachable!("invalid dst"),
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
     let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
@@ -140,8 +148,9 @@ fn main() -> Result<(), std::io::Error> {
 
                 reader.read_exact(&mut quant_table)?;
 
-                dbg!(dst);
+                print_dst_quant_table(dst);
                 print_8x8_quant_table(&quant_table);
+                println!();
             }
             _ => {
                 // read another BE u16, which indicates the length
