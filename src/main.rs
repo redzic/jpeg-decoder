@@ -94,7 +94,7 @@ fn main() -> Result<(), std::io::Error> {
                 // Don't process for now, just skip to the end,
                 // which should contain 0xffd9 to indicate the
                 // end of the image.
-                reader.seek(SeekFrom::End(-(size_of::<u16>() as i64)))?;
+                reader.seek(SeekFrom::End(-2))?;
             }
             JPEG_APPLICATION_DEFAULT_HEADER => {
                 let len = read_u16(&mut reader)?;
@@ -160,7 +160,7 @@ fn main() -> Result<(), std::io::Error> {
                 // but since we advanced the reader 2 bytes to actually
                 // read the length, we need to subtract by 2 to seek
                 // by the correct amount.
-                reader.seek(SeekFrom::Current(len as i64 - size_of::<u16>() as i64))?;
+                reader.seek(SeekFrom::Current(len as i64 - 2))?;
             }
         }
     }
