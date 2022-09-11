@@ -152,6 +152,25 @@ fn main() -> Result<(), std::io::Error> {
                 print_8x8_quant_table(&quant_table);
                 println!();
             }
+            JPEG_DEFINE_HUFFMAN_TABLE => {
+                let len = read_u16(&mut reader)?;
+
+                let ht_info = read_u8(&mut reader)?;
+
+                let ht_num = ht_info & 0xf;
+                assert!(ht_num <= 3);
+
+                // bit index 4 (5th bit) specifies whether table is for AC/DC
+                // 0 = DC, 1 = AC
+                let ht_is_dc = ((ht_info & (1 << 4)) >> 4) == 0;
+
+                // ensure bit index 5-7 is 0
+                assert!(ht_info & 0b1110_0000 == 0);
+
+                dbg!(ht_num, ht_is_dc);
+
+                reader.seek(SeekFrom::Current(len as i64 - 3))?;
+            }
             _ => {
                 // read another BE u16, which indicates the length
                 let len = read_u16(&mut reader)?;
