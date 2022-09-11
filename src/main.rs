@@ -40,7 +40,7 @@ fn main() -> Result<(), std::io::Error> {
         // read >H (python unpack notation), this means
         // we read a big-endian unsigned short.
 
-        if let Err(_) = reader.read_exact(&mut buf) {
+        if reader.read_exact(&mut buf).is_err() {
             break;
         }
 
