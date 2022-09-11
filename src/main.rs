@@ -75,7 +75,9 @@ fn main() -> Result<(), std::io::Error> {
                 // but since we advanced the reader 2 bytes to actually
                 // read the length, we need to subtract by 2 to seek
                 // by the correct amount.
-                reader.seek(SeekFrom::Current(len as i64 - 2))?;
+                reader.seek(SeekFrom::Current(
+                    len as i64 - std::mem::size_of::<u16>() as i64,
+                ))?;
             }
         }
     }
