@@ -17,17 +17,23 @@ fn slice<T, const N: usize>(x: &[T]) -> &[T; N] {
     unsafe { &*(&x[..N] as *const [T] as *const [T; N]) }
 }
 
-struct JpegDecoder {}
+const JPEG_START_OF_IMAGE: u16 = 0xffd8;
+const JPEG_APPLICATION_DEFAULT_HEADER: u16 = 0xffe0;
+const JPEG_QUANTIZATION_TABLE: u16 = 0xffdb;
+const JPEG_START_OF_FRAME: u16 = 0xffc0;
+const JPEG_DEFINE_HUFFMAN_TABLE: u16 = 0xffc4;
+const JPEG_START_OF_SCAN: u16 = 0xffda;
+const JPEG_END_OF_IMAGE: u16 = 0xffd9;
 
 fn get_jpeg_segment_name(marker: u16) -> &'static str {
     match marker {
-        0xffd8 => "Start of Image",
-        0xffe0 => "Application Default Header",
-        0xffdb => "Quantization Table",
-        0xffc0 => "Start of Frame",
-        0xffc4 => "Define Huffman Table",
-        0xffda => "Start of Scan",
-        0xffd9 => "End of Image",
+        JPEG_START_OF_IMAGE => "Start of Image",
+        JPEG_APPLICATION_DEFAULT_HEADER => "Application Default Header",
+        JPEG_QUANTIZATION_TABLE => "Quantization Table",
+        JPEG_START_OF_FRAME => "Start of Frame",
+        JPEG_DEFINE_HUFFMAN_TABLE => "Define Huffman Table",
+        JPEG_START_OF_SCAN => "Start of Scan",
+        JPEG_END_OF_IMAGE => "End of Image",
         _ => panic!("invalid jpeg marker"),
     }
 }
@@ -67,16 +73,16 @@ fn main() -> Result<(), std::io::Error> {
 
         match marker {
             // start of sequence
-            0xffd8 => {}
-            0xffd9 => {}
+            JPEG_START_OF_IMAGE => {}
+            JPEG_END_OF_IMAGE => {}
             // Start of scan (actual entropy coded image data)
-            0xffda => {
+            JPEG_START_OF_SCAN => {
                 // Don't process for now, just skip to the end,
                 // which should contain 0xffd9 to indicate the
                 // end of the image.
                 reader.seek(SeekFrom::End(-(size_of::<u16>() as i64)))?;
             }
-            0xffe0 => {
+            JPEG_APPLICATION_DEFAULT_HEADER => {
                 let len = read_u16(&mut reader)?;
 
                 let mut null_str = Vec::new();
