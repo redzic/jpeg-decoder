@@ -3,12 +3,6 @@ use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::mem::size_of;
 
-const JPEG_MARKER: [u8; 2] = [0xff, 0xd8];
-
-fn is_jpeg_marker(header: &[u8; 2]) -> bool {
-    *header == JPEG_MARKER
-}
-
 #[inline(always)]
 fn slice<T, const N: usize>(x: &[T]) -> &[T; N] {
     // SAFETY: if this bounds check succeeds, then
@@ -140,6 +134,7 @@ fn main() -> Result<(), std::io::Error> {
                 let len = read_u16(&mut reader)? as usize - 3;
 
                 // Umm.. isn't the length just always 64, when you subtract the destination byte?
+                // Not sure what the point of signaling this even is
                 assert!(len == 64);
 
                 let dst = read_u8(&mut reader)?;
@@ -164,6 +159,7 @@ fn main() -> Result<(), std::io::Error> {
                 // 0 = DC, 1 = AC
                 let ht_is_dc = ((ht_info & (1 << 4)) >> 4) == 0;
 
+                // TODO maybe make a build flag for extra checks or something
                 // ensure bit index 5-7 is 0
                 assert!(ht_info & 0b1110_0000 == 0);
 
@@ -171,6 +167,7 @@ fn main() -> Result<(), std::io::Error> {
 
                 reader.seek(SeekFrom::Current(len as i64 - 3))?;
             }
+            // Other currently unsupported marker
             _ => {
                 // read another BE u16, which indicates the length
                 let len = read_u16(&mut reader)?;
