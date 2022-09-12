@@ -171,13 +171,14 @@ fn main() -> Result<(), std::io::Error> {
                 let mut code = 0u16;
                 let mut bits = 0;
 
+                println!("[Symbol] [Code]:");
                 for tdepth in buf {
                     code <<= 1;
                     bits += 1;
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        println!("code: {:0width$b}", code, width = bits);
+                        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
 
                         code += 1;
                     }
