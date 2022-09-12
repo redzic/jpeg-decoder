@@ -3,14 +3,6 @@ use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::mem::size_of;
 
-#[inline(always)]
-fn slice<T, const N: usize>(x: &[T]) -> &[T; N] {
-    // SAFETY: if this bounds check succeeds, then
-    // it is safe to cast to a fixed-size slice
-    // of size N.
-    unsafe { &*(&x[..N] as *const [T] as *const [T; N]) }
-}
-
 const JPEG_START_OF_IMAGE: u16 = 0xffd8;
 const JPEG_APPLICATION_DEFAULT_HEADER: u16 = 0xffe0;
 const JPEG_QUANTIZATION_TABLE: u16 = 0xffdb;
@@ -62,6 +54,11 @@ fn print_dst_quant_table(dst: u8) {
     }
 }
 
+struct HuffmanCode {
+    code: u16,
+    bits: u8,
+}
+
 fn main() -> Result<(), std::io::Error> {
     let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
@@ -104,8 +101,6 @@ fn main() -> Result<(), std::io::Error> {
                     n_read <= len as usize - size_of::<u16>(),
                     "Invalid length after marker in Application Default Header"
                 );
-                // TODO technically not invalid length, but actually the string info
-                // or whatever is just too long
 
                 // TODO make read<N> helper function
                 let v_maj = read_u8(&mut reader)?;
@@ -168,7 +163,28 @@ fn main() -> Result<(), std::io::Error> {
                     if ht_is_dc { "DC" } else { "AC" }
                 );
 
-                reader.seek(SeekFrom::Current(len as i64 - 3))?;
+                // read 16 bytes for child node counts for 16 levels of huffman tree
+                let mut buf = [0; 16];
+
+                reader.read_exact(&mut buf)?;
+
+                let mut code = 0u16;
+                let mut bits = 0;
+
+                for tdepth in buf {
+                    code <<= 1;
+                    bits += 1;
+                    for _ in 0..tdepth {
+                        let symbol = read_u8(&mut reader)?;
+
+                        println!("code: {:0width$b}", code, width = bits);
+
+                        code += 1;
+                    }
+                }
+
+                // TODO for check_decoder, ensure symbols read equals
+                // sum of symbols read, and complies with the length
             }
             // Other currently unsupported marker
             _ => {
