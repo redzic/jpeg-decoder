@@ -143,7 +143,8 @@ fn main() -> Result<(), std::io::Error> {
                 println!();
             }
             JPEG_DEFINE_HUFFMAN_TABLE => {
-                let len = read_u16(&mut reader)?;
+                // Not actually needed, but we do have to advance forward 2 bytes.
+                let _len = read_u16(&mut reader)?;
 
                 let ht_info = read_u8(&mut reader)?;
 
@@ -167,14 +168,17 @@ fn main() -> Result<(), std::io::Error> {
                 let mut buf = [0; 16];
 
                 reader.read_exact(&mut buf)?;
+                println!("buf: {buf:?}");
 
                 let mut code = 0u16;
                 let mut bits = 0;
 
                 println!("[Symbol] [Code]:");
+
                 for tdepth in buf {
                     code <<= 1;
                     bits += 1;
+
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
