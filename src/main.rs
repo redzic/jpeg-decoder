@@ -163,7 +163,10 @@ fn main() -> Result<(), std::io::Error> {
                 // ensure bit index 5-7 is 0
                 assert!(ht_info & 0b1110_0000 == 0);
 
-                dbg!(ht_num, ht_is_dc);
+                println!(
+                    "Component {ht_num}, {} huffman tree",
+                    if ht_is_dc { "DC" } else { "AC" }
+                );
 
                 reader.seek(SeekFrom::Current(len as i64 - 3))?;
             }
