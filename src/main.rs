@@ -242,10 +242,15 @@ fn main() -> Result<(), std::io::Error> {
                 for _ in 0..num_components {
                     reader.read_exact(&mut buf)?;
 
+                    let vdec = buf[1] & 0xf;
+                    let hdec = buf[1] & 0xf0;
+
                     dashes();
                     println!("     Component ID: {} ({})", buf[0], comp_id(buf[0]));
 
                     // TODO how exactly are you supposed to actually parse this sample factors stuff?
+                    // println!(" Sampling Factors: 4:{}:{}", vdec, hdec);
+                    // What ?
                     println!(" Sampling Factors: {}", buf[1]);
                     println!("      Quant Table: {}", qt(buf[2]));
                 }
