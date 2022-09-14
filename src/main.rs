@@ -230,6 +230,12 @@ fn main() -> Result<(), std::io::Error> {
                     _ => panic!("unknown component id"),
                 };
 
+                let qt = |n: u8| match n {
+                    0 => "Luminance",
+                    1 => "Chrominance",
+                    _ => panic!("invalid quant table index"),
+                };
+
                 let dashes = || println!(" --------------------");
 
                 let mut buf = [0; 3];
@@ -241,7 +247,7 @@ fn main() -> Result<(), std::io::Error> {
 
                     // TODO how exactly are you supposed to actually parse this sample factors stuff?
                     println!(" Sampling Factors: {}", buf[1]);
-                    println!("    Quant Table #: {}", buf[2]);
+                    println!("      Quant Table: {}", qt(buf[2]));
                 }
 
                 dashes();
