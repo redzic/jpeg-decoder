@@ -15,7 +15,7 @@ fn get_jpeg_segment_name(marker: u16) -> &'static str {
     match marker {
         JPEG_START_OF_IMAGE => "Start of Image",
         JPEG_APPLICATION_DEFAULT_HEADER => "Application Default Header",
-        JPEG_QUANTIZATION_TABLE => "Quantization Table",
+        JPEG_QUANTIZATION_TABLE => "Define Quantization Table",
         JPEG_START_OF_FRAME => "Start of Frame",
         JPEG_DEFINE_HUFFMAN_TABLE => "Define Huffman Table",
         JPEG_START_OF_SCAN => "Start of Scan",
@@ -179,7 +179,7 @@ fn main() -> Result<(), std::io::Error> {
                 let mut code = 0u16;
                 let mut bits = 0;
 
-                // println!("[Symbol] [Code]:");
+                println!("[Symbol] [Code]:");
 
                 for tdepth in buf {
                     code <<= 1;
@@ -189,7 +189,7 @@ fn main() -> Result<(), std::io::Error> {
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        // println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
 
                         code += 1;
                     }
@@ -201,6 +201,24 @@ fn main() -> Result<(), std::io::Error> {
                 // sum of symbols read, and complies with the length
             }
             // Other currently unsupported marker
+            JPEG_START_OF_FRAME => {
+                let len = read_u16(&mut reader)?;
+
+                let data_precision = read_u8(&mut reader)?;
+
+                let height = read_u16(&mut reader)?;
+                let width = read_u16(&mut reader)?;
+
+                let num_components = read_u8(&mut reader)?;
+
+                reader.seek_relative(3 * num_components as i64)?;
+                // let mut buf = [0; 3];
+                // for _ in 0..num_components {
+                //     reader.read_exact(&mut buf)?;
+                // }
+
+                println!("Parsed: {width}x{height} px");
+            }
             _ => {
                 // read another BE u16, which indicates the length
                 let len = read_u16(&mut reader)?;
@@ -209,7 +227,7 @@ fn main() -> Result<(), std::io::Error> {
                 // but since we advanced the reader 2 bytes to actually
                 // read the length, we need to subtract by 2 to seek
                 // by the correct amount.
-                reader.seek(SeekFrom::Current(len as i64 - 2))?;
+                reader.seek_relative(len as i64 - 2)?;
             }
         }
     }
