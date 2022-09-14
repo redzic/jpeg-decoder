@@ -58,7 +58,7 @@ fn print_dst_quant_table(dst: u8) {
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let mut reader = BufReader::new(File::open("./out.jpg")?);
+    let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
     let mut buf = [0; 2];
 
@@ -95,6 +95,8 @@ fn main() -> Result<(), std::io::Error> {
 
                 // Byte can occur at any position.
 
+                let mut data = vec![];
+
                 let mut prev_byte_was_0xff = false;
 
                 // Is memmap worth looking into?
@@ -103,14 +105,20 @@ fn main() -> Result<(), std::io::Error> {
                 // of BufReader?
                 // Memory is probably a huge bottleneck.
 
+                let mut skipped_bytes = 0;
+
                 // Uhh is there a way to do this that isn't really slow?
                 // Might have to use memchr or something.
                 // But a continuous memchr that actually marks all fucking
                 // bytes instead of inefficiently stopping.
                 loop {
+                    // May or may not actually use the byte in each iter of the loop.
                     let byte = read_u8(&mut reader)?;
                     if prev_byte_was_0xff {
                         if byte == 0x00 {
+                            // push previous byte (since current one is 0x00)
+                            data.push(0xFF);
+                            skipped_bytes += 1;
                             prev_byte_was_0xff = false;
                             continue;
                         } else {
@@ -118,11 +126,31 @@ fn main() -> Result<(), std::io::Error> {
                         }
                     } else {
                         if byte == 0xFF {
+                            // will be added in next loop iteration
                             prev_byte_was_0xff = true;
-                            continue;
+                        } else {
+                            data.push(byte);
                         }
                     }
                 }
+
+                // TODO optimize this really bad and slow code
+                // i gives bit position
+                for i in 0..8 * data.len() {
+                    let byte_index = i / 8;
+
+                    // range [0,7]
+                    let bit_offset = i % 8;
+
+                    let byte = data[byte_index];
+                    // let bit = byte >> bit_offset;
+
+                    // uhh.. hopefully this is actually correct
+                    let bit = (byte & (1 << bit_offset)) >> bit_offset;
+                }
+
+                println!("[BITSTREAM] data len: {} bytes", data.len());
+                println!("[BITSTREAM]  skipped: {} bytes", skipped_bytes);
             }
             JPEG_APPLICATION_DEFAULT_HEADER => {
                 let len = read_u16(&mut reader)?;
