@@ -78,6 +78,9 @@ fn main() -> Result<(), std::io::Error> {
 
         println!("{}", get_jpeg_segment_name(marker));
 
+        // TODO: make this a more strongly-typed enum.
+        // and make a function like segment_name or something,
+        // which returns Option<Marker>
         match marker {
             // start of sequence
             JPEG_START_OF_IMAGE => {}
@@ -149,8 +152,8 @@ fn main() -> Result<(), std::io::Error> {
                     let bit = (byte & (1 << bit_offset)) >> bit_offset;
                 }
 
-                println!("[BITSTREAM] data len: {} bytes", data.len());
-                println!("[BITSTREAM]  skipped: {} bytes", skipped_bytes);
+                println!("[BYTE STREAM] data len: {} bytes", data.len());
+                println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
             }
             JPEG_APPLICATION_DEFAULT_HEADER => {
                 let len = read_u16(&mut reader)?;
