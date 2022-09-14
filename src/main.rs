@@ -179,7 +179,7 @@ fn main() -> Result<(), std::io::Error> {
                 let mut code = 0u16;
                 let mut bits = 0;
 
-                println!("[Symbol] [Code]:");
+                // println!("[Symbol] [Code]:");
 
                 for tdepth in buf {
                     code <<= 1;
@@ -189,7 +189,7 @@ fn main() -> Result<(), std::io::Error> {
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        // println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
 
                         code += 1;
                     }
@@ -204,20 +204,47 @@ fn main() -> Result<(), std::io::Error> {
             JPEG_START_OF_FRAME => {
                 let len = read_u16(&mut reader)?;
 
+                // bits per sample
                 let data_precision = read_u8(&mut reader)?;
 
                 let height = read_u16(&mut reader)?;
                 let width = read_u16(&mut reader)?;
 
                 let num_components = read_u8(&mut reader)?;
+                assert!([1, 3].contains(&num_components));
 
-                reader.seek_relative(3 * num_components as i64)?;
-                // let mut buf = [0; 3];
-                // for _ in 0..num_components {
-                //     reader.read_exact(&mut buf)?;
-                // }
+                println!(" {}-bit precision", data_precision);
+                println!(" Resolution: {width}x{height} px");
+                if num_components == 1 {
+                    println!(" Monochrome (1 component)");
+                } else {
+                    println!(" YCbCr or YIQ (3 components)");
+                }
 
-                println!("Parsed: {width}x{height} px");
+                let comp_id = |id: u8| match id {
+                    1 => "Y",
+                    2 => "Cb",
+                    3 => "Cr",
+                    4 => "I",
+                    5 => "Q",
+                    _ => panic!("unknown component id"),
+                };
+
+                let dashes = || println!(" --------------------");
+
+                let mut buf = [0; 3];
+                for _ in 0..num_components {
+                    reader.read_exact(&mut buf)?;
+
+                    dashes();
+                    println!("     Component ID: {} ({})", buf[0], comp_id(buf[0]));
+
+                    // TODO how exactly are you supposed to actually parse this sample factors stuff?
+                    println!(" Sampling Factors: {}", buf[1]);
+                    println!("    Quant Table #: {}", buf[2]);
+                }
+
+                dashes();
             }
             _ => {
                 // read another BE u16, which indicates the length
