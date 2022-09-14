@@ -51,14 +51,14 @@ fn print_8x8_quant_table(x: &[u8; 64]) {
 
 fn print_dst_quant_table(dst: u8) {
     match dst {
-        0 => println!("0 - luminance"),
-        1 => println!("1 - chrominance"),
+        0 => println!("Luminance"),
+        1 => println!("Chrominance"),
         _ => unreachable!("invalid dst for quant matrix"),
     }
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let mut reader = BufReader::new(File::open("./profile.jpg")?);
+    let mut reader = BufReader::new(File::open("./out.jpg")?);
 
     let mut buf = [0; 2];
 
@@ -70,6 +70,10 @@ fn main() -> Result<(), std::io::Error> {
             break;
         }
 
+        // Very tiny optimization idea: avoid swapping bytes when
+        // reading the marker by just comparing the bytes already
+        // swapped (on little endian). On big endian, compare the
+        // bytes as normal. No swapping required either way.
         let marker = u16::from_be_bytes(buf);
 
         println!("{}", get_jpeg_segment_name(marker));
@@ -80,10 +84,45 @@ fn main() -> Result<(), std::io::Error> {
             JPEG_END_OF_IMAGE => {}
             // Start of scan (actual entropy coded image data)
             JPEG_START_OF_SCAN => {
-                // Don't process for now, just skip to the end,
-                // which should contain 0xffd9 to indicate the
-                // end of the image.
-                reader.seek(SeekFrom::End(-2))?;
+                // Any time we encounter 0xFF00, it's just 0xFF.
+                // So we basically need to remove any 0 bytes, I guess.
+
+                // Keep reading bytes
+                // If you encounter 0xFF, if the next byte is 0x00,
+                // just remove the 0x00 part.
+                // Otherwise, if there's any other byte afterwards,
+                // break out of the loop (0xFFD9).
+
+                // Byte can occur at any position.
+
+                let mut prev_byte_was_0xff = false;
+
+                // Is memmap worth looking into?
+                // What's the fastest way to do file I/O?
+                // Any way to avoid copying from inner buffer
+                // of BufReader?
+                // Memory is probably a huge bottleneck.
+
+                // Uhh is there a way to do this that isn't really slow?
+                // Might have to use memchr or something.
+                // But a continuous memchr that actually marks all fucking
+                // bytes instead of inefficiently stopping.
+                loop {
+                    let byte = read_u8(&mut reader)?;
+                    if prev_byte_was_0xff {
+                        if byte == 0x00 {
+                            prev_byte_was_0xff = false;
+                            continue;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        if byte == 0xFF {
+                            prev_byte_was_0xff = true;
+                            continue;
+                        }
+                    }
+                }
             }
             JPEG_APPLICATION_DEFAULT_HEADER => {
                 let len = read_u16(&mut reader)?;
@@ -179,7 +218,7 @@ fn main() -> Result<(), std::io::Error> {
                 let mut code = 0u16;
                 let mut bits = 0;
 
-                // println!("[Symbol] [Code]:");
+                println!("[Symbol] [Code]:");
 
                 for tdepth in buf {
                     code <<= 1;
@@ -189,7 +228,7 @@ fn main() -> Result<(), std::io::Error> {
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        // println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
 
                         code += 1;
                     }
@@ -253,6 +292,8 @@ fn main() -> Result<(), std::io::Error> {
                     // What ?
                     println!(" Sampling Factors: {}", buf[1]);
                     println!("      Quant Table: {}", qt(buf[2]));
+                    // TODO append this to some kind of variable, apparently we need it
+                    // something like quant_mapping, an array with [0,1,1]
                 }
 
                 dashes();
