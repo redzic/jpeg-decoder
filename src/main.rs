@@ -42,7 +42,10 @@ fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
 
 fn print_8x8_quant_table(x: &[u8; 64]) {
     for chunk in x.chunks_exact(8) {
-        println!("{chunk:?}");
+        for &x in chunk {
+            print!("{x: >3} ");
+        }
+        println!();
     }
 }
 
@@ -50,13 +53,8 @@ fn print_dst_quant_table(dst: u8) {
     match dst {
         0 => println!("0 - luminance"),
         1 => println!("1 - chrominance"),
-        _ => unreachable!("invalid dst"),
+        _ => unreachable!("invalid dst for quant matrix"),
     }
-}
-
-struct HuffmanCode {
-    code: u16,
-    bits: u8,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -128,16 +126,24 @@ fn main() -> Result<(), std::io::Error> {
             JPEG_QUANTIZATION_TABLE => {
                 let len = read_u16(&mut reader)? as usize - 3;
 
-                // Umm.. isn't the length just always 64, when you subtract the destination byte?
-                // Not sure what the point of signaling this even is
+                // TODO we handle this incorrectly for 16-bit
                 assert!(len == 64);
 
-                let dst = read_u8(&mut reader)?;
+                let qt_info = read_u8(&mut reader)?;
+
+                // bottom 4 bits are the actual dst
+                let dst = qt_info & 0xf;
+
+                // if upper 4 bits are 0, 8-bit
+                // otherwise 16-bit
+                let qt_is_8_bit = (qt_info & 0xf0) == 0;
 
                 let mut quant_table = [0; 8 * 8];
 
+                // TODO this isn't correct for 16-bit
                 reader.read_exact(&mut quant_table)?;
 
+                println!("Quant Matrix: {}-bit", if qt_is_8_bit { "8" } else { "16" });
                 print_dst_quant_table(dst);
                 print_8x8_quant_table(&quant_table);
                 println!();
@@ -173,20 +179,23 @@ fn main() -> Result<(), std::io::Error> {
                 let mut code = 0u16;
                 let mut bits = 0;
 
-                println!("[Symbol] [Code]:");
+                // println!("[Symbol] [Code]:");
 
                 for tdepth in buf {
                     code <<= 1;
                     bits += 1;
 
+                    // TODO optimize symbol decoding
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        // println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
 
                         code += 1;
                     }
                 }
+
+                println!("Elements: {}", buf.iter().map(|x| *x as u32).sum::<u32>());
 
                 // TODO for check_decoder, ensure symbols read equals
                 // sum of symbols read, and complies with the length
