@@ -62,6 +62,9 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut buf = [0; 2];
 
+    let mut quant_matrices = [[0; 64]; 2];
+    let mut quant_mapping = Vec::new();
+
     loop {
         // read >H (python unpack notation), this means
         // we read a big-endian unsigned short.
@@ -78,6 +81,9 @@ fn main() -> Result<(), std::io::Error> {
 
         println!("{}", get_jpeg_segment_name(marker));
 
+        // JPEG wastes a bit in the huffman coding since it generates
+        // the code in such a way that none of the codes are all ones.
+
         // TODO: make this a more strongly-typed enum.
         // and make a function like segment_name or something,
         // which returns Option<Marker>
@@ -87,6 +93,11 @@ fn main() -> Result<(), std::io::Error> {
             JPEG_END_OF_IMAGE => {}
             // Start of scan (actual entropy coded image data)
             JPEG_START_OF_SCAN => {
+                // What the hell is this length for?
+                let len = read_u16(&mut reader)?;
+
+                reader.seek_relative((len - 2) as i64)?;
+
                 // Any time we encounter 0xFF00, it's just 0xFF.
                 // So we basically need to remove any 0 bytes, I guess.
 
@@ -143,14 +154,26 @@ fn main() -> Result<(), std::io::Error> {
                     let byte_index = i / 8;
 
                     // range [0,7]
-                    let bit_offset = i % 8;
+                    // let bit_offset = i % 8;
+                    // bro where tf does it specify that you're supposed to do this in reverse???
+                    // like we're getting the msb first
+                    // bro why do they make the decoding slower for no reason?
+                    let bit_offset = 7 - (i % 8);
+                    // actually apparently it's not that bad since you can just negate the bits
+                    // still tho...
+                    // wonder if there's a way to avoid negating the bits in the innermost part
+                    // of the loop
 
                     let byte = data[byte_index];
-                    // let bit = byte >> bit_offset;
 
                     // uhh.. hopefully this is actually correct
-                    let bit = (byte & (1 << bit_offset)) >> bit_offset;
+                    let bit = (byte >> bit_offset) & 1;
+
+                    if i < 128 {
+                        print!("{bit}");
+                    }
                 }
+                println!();
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
                 println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
@@ -170,7 +193,6 @@ fn main() -> Result<(), std::io::Error> {
                     "Invalid length after marker in Application Default Header"
                 );
 
-                // TODO make read<N> helper function
                 let v_maj = read_u8(&mut reader)?;
                 let v_min = read_u8(&mut reader)?;
 
@@ -204,18 +226,23 @@ fn main() -> Result<(), std::io::Error> {
                 // bottom 4 bits are the actual dst
                 let dst = qt_info & 0xf;
 
+                // index 0 or 1 only are allowed
+                assert!(dst <= 1);
+
                 // if upper 4 bits are 0, 8-bit
                 // otherwise 16-bit
                 let qt_is_8_bit = (qt_info & 0xf0) == 0;
 
-                let mut quant_table = [0; 8 * 8];
+                // for now we assume 8-bit, since 16-bit requires
+                // reading twice as many bytes (roughly).
+                assert!(qt_is_8_bit);
 
                 // TODO this isn't correct for 16-bit
-                reader.read_exact(&mut quant_table)?;
+                reader.read_exact(&mut quant_matrices[dst as usize])?;
 
                 println!("Quant Matrix: {}-bit", if qt_is_8_bit { "8" } else { "16" });
                 print_dst_quant_table(dst);
-                print_8x8_quant_table(&quant_table);
+                print_8x8_quant_table(&quant_matrices[dst as usize]);
                 println!();
             }
             JPEG_DEFINE_HUFFMAN_TABLE => {
@@ -259,7 +286,28 @@ fn main() -> Result<(), std::io::Error> {
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        if ht_is_dc {
+                            println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        } else {
+                            // bit count is in the low 4 bits of the symbol
+
+                            let bit_count = symbol & 0xf;
+
+                            // how many preceeding zeros there are before this coefficient
+                            let run_length = (symbol & 0xf0) >> 4;
+
+                            // How do we actually decode negative numbers?
+
+                            // the run length seems to be all multiples of 4?
+
+                            println!(
+                                "({}, {})    \t:  {:0width$b}",
+                                bit_count,
+                                run_length,
+                                code,
+                                width = bits
+                            );
+                        }
 
                         code += 1;
                     }
@@ -280,6 +328,7 @@ fn main() -> Result<(), std::io::Error> {
                 let height = read_u16(&mut reader)?;
                 let width = read_u16(&mut reader)?;
 
+                // So number of quant tables is either 1 or 3
                 let num_components = read_u8(&mut reader)?;
                 assert!([1, 3].contains(&num_components));
 
@@ -325,6 +374,8 @@ fn main() -> Result<(), std::io::Error> {
                     println!("      Quant Table: {}", qt(buf[2]));
                     // TODO append this to some kind of variable, apparently we need it
                     // something like quant_mapping, an array with [0,1,1]
+
+                    quant_mapping.push(buf[2]);
                 }
 
                 dashes();
@@ -337,7 +388,7 @@ fn main() -> Result<(), std::io::Error> {
                 // but since we advanced the reader 2 bytes to actually
                 // read the length, we need to subtract by 2 to seek
                 // by the correct amount.
-                reader.seek_relative(len as i64 - 2)?;
+                reader.seek_relative((len - 2) as i64)?;
             }
         }
     }
