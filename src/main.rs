@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
@@ -57,6 +58,30 @@ fn print_dst_quant_table(dst: u8) {
     }
 }
 
+#[derive(Hash, Eq, PartialEq)]
+struct HuffmanCode {
+    code: u16,
+    bits: u8,
+}
+
+impl Default for HuffmanCode {
+    fn default() -> Self {
+        Self { code: 0, bits: 0 }
+    }
+}
+
+struct HuffmanTree {
+    lookup: HashMap<HuffmanCode, u8>,
+}
+
+impl HuffmanTree {
+    fn new() -> Self {
+        Self {
+            lookup: HashMap::new(),
+        }
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
     let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
@@ -64,6 +89,14 @@ fn main() -> Result<(), std::io::Error> {
 
     let mut quant_matrices = [[0; 64]; 2];
     let mut quant_mapping = Vec::new();
+
+    // up to 4 components
+    // index with
+    // [is_dc][is_luma]
+    let mut huffman_table: [[HuffmanTree; 2]; 2] = [
+        [HuffmanTree::new(), HuffmanTree::new()],
+        [HuffmanTree::new(), HuffmanTree::new()],
+    ];
 
     loop {
         // read >H (python unpack notation), this means
@@ -80,9 +113,6 @@ fn main() -> Result<(), std::io::Error> {
         let marker = u16::from_be_bytes(buf);
 
         println!("{}", get_jpeg_segment_name(marker));
-
-        // JPEG wastes a bit in the huffman coding since it generates
-        // the code in such a way that none of the codes are all ones.
 
         // TODO: make this a more strongly-typed enum.
         // and make a function like segment_name or something,
@@ -148,6 +178,10 @@ fn main() -> Result<(), std::io::Error> {
                     }
                 }
 
+                // decode luma DC coefficient
+
+                let mut code: HuffmanCode = Default::default();
+
                 // TODO optimize this really bad and slow code
                 // i gives bit position
                 for i in 0..8 * data.len() {
@@ -168,6 +202,16 @@ fn main() -> Result<(), std::io::Error> {
 
                     // uhh.. hopefully this is actually correct
                     let bit = (byte >> bit_offset) & 1;
+
+                    code.bits += 1;
+                    code.code <<= 1;
+                    code.code |= bit as u16;
+
+                    // if let Some(x) = huffman_table[is_dc][0].get(code) {}
+                    if let Some(&x) = huffman_table[true as usize][0].lookup.get(&code) {
+                        println!("\ndecoded symbol {x}");
+                        code.code = Default::default();
+                    }
 
                     if i < 128 {
                         print!("{bit}");
@@ -246,37 +290,46 @@ fn main() -> Result<(), std::io::Error> {
                 println!();
             }
             JPEG_DEFINE_HUFFMAN_TABLE => {
+                // Does jpeg require the huffman tables to be specified
+                // in increasing component order?
+
+                // Up to 4 huffman tables are allowed in JPEG
+
                 // Not actually needed, but we do have to advance forward 2 bytes.
                 let _len = read_u16(&mut reader)?;
 
                 let ht_info = read_u8(&mut reader)?;
 
                 let ht_num = ht_info & 0xf;
-                assert!(ht_num <= 3);
+                assert!(ht_num <= 1);
 
                 // bit index 4 (5th bit) specifies whether table is for AC/DC
                 // 0 = DC, 1 = AC
-                let ht_is_dc = ((ht_info & (1 << 4)) >> 4) == 0;
+                let is_dc = (ht_info >> 4) & 1 == 0;
 
                 // TODO maybe make a build flag for extra checks or something
                 // ensure bit index 5-7 is 0
                 assert!(ht_info & 0b1110_0000 == 0);
 
+                // I think component 0 is luma
+                // and component 1 is chroma
+
                 println!(
                     "Component {ht_num}, {} huffman tree",
-                    if ht_is_dc { "DC" } else { "AC" }
+                    if is_dc { "DC" } else { "AC" }
                 );
 
                 // read 16 bytes for child node counts for 16 levels of huffman tree
                 let mut buf = [0; 16];
 
                 reader.read_exact(&mut buf)?;
-                println!("buf: {buf:?}");
 
                 let mut code = 0u16;
                 let mut bits = 0;
 
-                println!("[Symbol] [Code]:");
+                let mut ht = HuffmanTree {
+                    lookup: HashMap::new(),
+                };
 
                 for tdepth in buf {
                     code <<= 1;
@@ -286,41 +339,45 @@ fn main() -> Result<(), std::io::Error> {
                     for _ in 0..tdepth {
                         let symbol = read_u8(&mut reader)?;
 
-                        if ht_is_dc {
-                            println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
-                        } else {
-                            // bit count is in the low 4 bits of the symbol
+                        ht.lookup.insert(HuffmanCode { code, bits }, symbol);
 
-                            let bit_count = symbol & 0xf;
+                        // if ht_is_dc {
+                        //     println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+                        // } else {
+                        //     // bit count is in the low 4 bits of the symbol
 
-                            // how many preceeding zeros there are before this coefficient
-                            let run_length = (symbol & 0xf0) >> 4;
+                        //     let bit_count = symbol & 0xf;
 
-                            // How do we actually decode negative numbers?
+                        //     // how many preceeding zeros there are before this coefficient
+                        //     let run_length = (symbol & 0xf0) >> 4;
 
-                            // the run length seems to be all multiples of 4?
-
-                            println!(
-                                "({}, {})    \t:  {:0width$b}",
-                                bit_count,
-                                run_length,
-                                code,
-                                width = bits
-                            );
-                        }
+                        //     println!(
+                        //         "({}, {})    \t:  {:0width$b}",
+                        //         bit_count,
+                        //         run_length,
+                        //         code,
+                        //         width = bits
+                        //     );
+                        // }
 
                         code += 1;
                     }
                 }
 
-                println!("Elements: {}", buf.iter().map(|x| *x as u32).sum::<u32>());
+                // println!("Elements: {}", buf.iter().map(|x| *x as u32).sum::<u32>());
+
+                // huffman_table.push(ht);
+
+                // so AC is actually stored at index 0,
+                // DC tree at index 1
+                huffman_table[is_dc as usize][ht_num as usize] = ht;
 
                 // TODO for check_decoder, ensure symbols read equals
                 // sum of symbols read, and complies with the length
             }
             // Other currently unsupported marker
             JPEG_START_OF_FRAME => {
-                let len = read_u16(&mut reader)?;
+                let _len = read_u16(&mut reader)?;
 
                 // bits per sample
                 let data_precision = read_u8(&mut reader)?;
