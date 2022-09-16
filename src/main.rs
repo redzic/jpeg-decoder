@@ -83,18 +83,18 @@ impl HuffmanTree {
         }
     }
 
-    fn read_code(&self, bitreader: &mut BitReader) -> u8 {
+    fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
         let mut code: HuffmanCode = Default::default();
         loop {
             // read bit
-            let bit = bitreader.get_bit().unwrap();
+            let bit = bitreader.get_bit()?;
 
             code.bits += 1;
             code.code <<= 1;
             code.code |= bit as u16;
 
-            if let Some(x) = self.lookup.get(&code) {
-                return *x;
+            if let Some(&symbol) = self.lookup.get(&code) {
+                return Some(symbol);
             }
         }
     }
@@ -287,7 +287,7 @@ fn main() -> Result<(), std::io::Error> {
                 // decode luma DC coefficient
                 // Get length of first coefficient
 
-                let dc_bits = huffman_table[1][0].read_code(&mut bitreader);
+                let dc_bits = huffman_table[1][0].read_code(&mut bitreader).unwrap();
 
                 // get N bits
                 let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
@@ -302,7 +302,7 @@ fn main() -> Result<(), std::io::Error> {
 
                 let mut idx = 1;
                 loop {
-                    let symbol = huffman_table[0][0].read_code(&mut bitreader);
+                    let symbol = huffman_table[0][0].read_code(&mut bitreader).unwrap();
 
                     // how many bits to read
                     let ac_bits = symbol & 0xf;
