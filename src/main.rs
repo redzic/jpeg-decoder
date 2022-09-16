@@ -82,6 +82,58 @@ impl HuffmanTree {
     }
 }
 
+pub fn sign_code(n_bits: u32, code: u16) -> i16 {
+    if ((code as u32) << 1) >> n_bits != 0 {
+        code as i16
+    } else {
+        // 0
+        let max_val = (1 << n_bits) - 1;
+        code as i16 - max_val
+    }
+}
+
+struct BitReader<'a> {
+    data: &'a [u8],
+    bit_idx: usize,
+}
+
+impl<'a> BitReader<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        Self { data, bit_idx: 0 }
+    }
+
+    fn get_bit(&mut self) -> Option<bool> {
+        let byte_idx = self.bit_idx / 8;
+
+        if let Some(&x) = self.data.get(byte_idx) {
+            let bit_offset = 7 - self.bit_idx % 8;
+            let ret = (x >> bit_offset) & 1 != 0;
+
+            // for next iteration
+            self.bit_idx += 1;
+
+            return Some(ret);
+        }
+
+        // None
+        None
+    }
+
+    fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
+        assert!(bits <= 16);
+
+        let mut code = 0;
+
+        for _ in 0..bits {
+            let bit = self.get_bit()? as u16;
+            code <<= 1;
+            code |= bit;
+        }
+
+        Some(code)
+    }
+}
+
 fn main() -> Result<(), std::io::Error> {
     let mut reader = BufReader::new(File::open("./profile.jpg")?);
 
@@ -178,45 +230,34 @@ fn main() -> Result<(), std::io::Error> {
                     }
                 }
 
+                let mut bitreader = BitReader::new(&data);
+
                 // decode luma DC coefficient
+                // Get length of first coefficient
+                let dc_bits = {
+                    let mut code: HuffmanCode = Default::default();
+                    loop {
+                        // read bit
+                        let bit = bitreader.get_bit().unwrap();
 
-                let mut code: HuffmanCode = Default::default();
+                        code.bits += 1;
+                        code.code <<= 1;
+                        code.code |= bit as u16;
 
-                // TODO optimize this really bad and slow code
-                // i gives bit position
-                for i in 0..8 * data.len() {
-                    let byte_index = i / 8;
-
-                    // range [0,7]
-                    // let bit_offset = i % 8;
-                    // bro where tf does it specify that you're supposed to do this in reverse???
-                    // like we're getting the msb first
-                    // bro why do they make the decoding slower for no reason?
-                    let bit_offset = 7 - (i % 8);
-                    // actually apparently it's not that bad since you can just negate the bits
-                    // still tho...
-                    // wonder if there's a way to avoid negating the bits in the innermost part
-                    // of the loop
-
-                    let byte = data[byte_index];
-
-                    // uhh.. hopefully this is actually correct
-                    let bit = (byte >> bit_offset) & 1;
-
-                    code.bits += 1;
-                    code.code <<= 1;
-                    code.code |= bit as u16;
-
-                    // if let Some(x) = huffman_table[is_dc][0].get(code) {}
-                    if let Some(&x) = huffman_table[true as usize][0].lookup.get(&code) {
-                        println!("\ndecoded symbol {x}");
-                        code.code = Default::default();
+                        if let Some(x) = huffman_table[1][0].lookup.get(&code) {
+                            break *x;
+                        }
                     }
+                };
 
-                    if i < 128 {
-                        print!("{bit}");
-                    }
-                }
+                // get N bits
+                let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
+
+                // Uhh... I don't think this is the correct code unfortunately
+                let dc_val = sign_code(dc_bits as u32, dc_val);
+
+                dbg!(dc_val);
+
                 println!();
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
