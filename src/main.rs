@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::fs::File;
 use std::io;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
@@ -41,12 +42,13 @@ fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
     Ok(buf[0])
 }
 
-fn print_8x8_quant_table(x: &[u8; 64]) {
+fn print_8x8_table<T: Display + Copy>(x: &[T; 64]) {
     for chunk in x.chunks_exact(8) {
+        print!("[");
         for &x in chunk {
-            print!("{x: >3} ");
+            print!("{x: >5} ");
         }
-        println!();
+        println!("  ]");
     }
 }
 
@@ -106,6 +108,40 @@ pub fn sign_code(n_bits: u32, code: u16) -> i16 {
         let max_val = (1 << n_bits) - 1;
         code as i16 - max_val
     }
+}
+
+#[rustfmt::skip]
+const ZIGZAG_ORDER: [usize; 64] = [
+     0,  1,  8, 16,  9,  2,  3, 10,
+    17, 24, 32, 25, 18, 11,  4,  5,
+    12, 19,	26, 33, 40, 48, 41, 34,
+    27, 20, 13,  6,  7, 14, 21, 28,
+    35, 42, 49, 56, 57, 50, 43, 36,
+    29, 22, 15, 23, 30, 37, 44, 51,
+    58, 59, 52, 45, 38, 31, 39, 46,
+    53, 60, 61, 54, 47, 55, 62, 63,
+];
+
+#[rustfmt::skip]
+const ZIGZAG_DECODE_ORDER: [usize; 64] = [
+    0,  1,  5,  6, 14, 15, 27, 28,
+    2,  4,  7, 13, 16, 26, 29, 42,
+    3,  8, 12, 17, 25, 30, 41, 43,
+    9, 11, 18, 24, 31, 40, 44, 53,
+   10, 19, 23, 32, 39, 45, 52, 54,
+   20, 22, 33, 38, 46, 51, 55, 60,
+   21, 34, 37, 47, 50, 56, 59, 61,
+   35, 36, 48, 49, 57, 58, 62, 63,
+];
+
+pub fn zigzag_descan(coeffs: &[i16; 64]) -> [i16; 64] {
+    let mut new = [0; 64];
+
+    for (idx, &select_idx) in ZIGZAG_DECODE_ORDER.iter().enumerate() {
+        new[idx] = coeffs[select_idx];
+    }
+
+    new
 }
 
 struct BitReader<'a> {
@@ -302,20 +338,20 @@ fn main() -> Result<(), std::io::Error> {
                     }
                 }
 
-                println!("coeffs: {:?}", mcu_block);
+                println!("DCT coefficients before zigzag descan:");
+                print_8x8_table(&mcu_block);
+
+                // undo zigzag scan order
+                let mut mcu_coeffs = zigzag_descan(&mcu_block);
 
                 // dequantize
                 // assume luma block for now
                 for i in 0..64 {
-                    mcu_block[i] *= quant_matrices[0][i] as i16;
+                    mcu_coeffs[i] *= quant_matrices[0][i] as i16;
                 }
 
-                println!("after dequantization: {:?}", mcu_block);
-
-                // TODO how to know when to stop decoding AC coefficients?
-                // also like, how exactly is everything actually laid out?
-
-                // println!("First AC coefficient: {ac_coeff}");
+                println!("DCT coefficients after zizag descan and dequantization:");
+                print_8x8_table(&mcu_coeffs);
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
                 println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
@@ -384,7 +420,7 @@ fn main() -> Result<(), std::io::Error> {
 
                 println!("Quant Matrix: {}-bit", if qt_is_8_bit { "8" } else { "16" });
                 print_dst_quant_table(dst);
-                print_8x8_quant_table(&quant_matrices[dst as usize]);
+                print_8x8_table(&quant_matrices[dst as usize]);
                 println!();
             }
             JPEG_DEFINE_HUFFMAN_TABLE => {
