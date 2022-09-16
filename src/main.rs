@@ -267,27 +267,43 @@ fn main() -> Result<(), std::io::Error> {
 
                 // decode AC coefficients
 
-                let symbol = huffman_table[0][0].read_code(&mut bitreader);
-
-                // how many bits to read
-                let ac_bits = symbol & 0xf;
-
-                // how many preceeding zeros there are before this coefficient
-                let run_length = symbol >> 4;
-
-                let ac_val = bitreader.get_n_bits(ac_bits as u32).unwrap();
-                // is this the final AC coefficient? like, nothing else to do?
-                let ac_coeff = sign_code(ac_bits as u32, ac_val);
-
                 // first few AC coefficients
-                // 25, 7, 1, 3, 1, -1, -2, -5, 1
+                // 25, 7, 1, 3, 1, -1, -2, -5, 1, 1, -1, 1
 
-                // it looks like only the DC coefficients are predicted from the previous
-                // thing, which actually kinda makes this way easier
-                // could maybe process JPEG in parallel with a parallel prefix scan
-                // and fixup DC coefficient with basic add later
+                // before de-zigzag
+                let mut mcu_block = [0; 8 * 8];
+                mcu_block[0] = dc_coeff;
 
-                println!("First AC coefficient: {ac_coeff}");
+                let mut idx = 1;
+                loop {
+                    let symbol = huffman_table[0][0].read_code(&mut bitreader);
+
+                    // how many bits to read
+                    let ac_bits = symbol & 0xf;
+
+                    // how many preceeding zeros there are before this coefficient
+                    let run_length = symbol >> 4;
+
+                    let ac_val = bitreader.get_n_bits(ac_bits as u32).unwrap();
+                    // is this the final AC coefficient? like, nothing else to do?
+                    let ac_coeff = sign_code(ac_bits as u32, ac_val);
+
+                    idx += run_length as usize;
+                    mcu_block[idx] = ac_coeff;
+
+                    println!("AC coeff: {ac_coeff}");
+
+                    // if ac_coeff == 0,
+                    // that apparently indicates the end of the block.
+                    if ac_coeff == 0 {
+                        break;
+                    }
+                }
+
+                // TODO how to know when to stop decoding AC coefficients?
+                // also like, how exactly is everything actually laid out?
+
+                // println!("First AC coefficient: {ac_coeff}");
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
                 println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
