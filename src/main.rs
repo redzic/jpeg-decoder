@@ -296,16 +296,6 @@ fn main() -> Result<(), std::io::Error> {
 
                 let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
 
-                println!("DC coeff: {dc_coeff}");
-
-                // first couple of DC coefficients:
-                // -87, -41, 12, -51, -54, 15, -64, -51, 14
-
-                // decode AC coefficients
-
-                // first few AC coefficients
-                // 25, 7, 1, 3, 1, -1, -2, -5, 1, 1, -1, 1
-
                 // before de-zigzag
                 let mut mcu_block = [0; 8 * 8];
                 mcu_block[0] = dc_coeff;
@@ -328,8 +318,6 @@ fn main() -> Result<(), std::io::Error> {
                     mcu_block[idx] = ac_coeff;
 
                     idx += 1;
-
-                    println!("AC coeff: {ac_coeff}");
 
                     // if ac_coeff == 0,
                     // that apparently indicates the end of the block.
