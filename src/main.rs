@@ -46,9 +46,9 @@ fn print_8x8_matrix<T: Display + Copy>(x: &[T; 64]) {
     for chunk in x.chunks_exact(8) {
         print!("[");
         for &x in chunk {
-            print!("{x: >5} ");
+            print!("{x: >4} ");
         }
-        println!("  ]");
+        println!(" ]");
     }
 }
 
