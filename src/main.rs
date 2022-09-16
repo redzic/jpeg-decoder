@@ -258,33 +258,36 @@ fn main() -> Result<(), std::io::Error> {
 
                 let mut prev_dc_coeff = 0;
 
-                // Uhh... I don't think this is the correct code unfortunately
                 let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
 
                 println!("DC coeff: {dc_coeff}");
 
                 // first couple of DC coefficients:
-                // -87
-                // -41
-                // 12
-                // -51
-                // -54
-                // 15
-                // -64
-                // -51
-                // 14
+                // -87, -41, 12, -51, -54, 15, -64, -51, 14
 
                 // decode AC coefficients
 
                 let symbol = huffman_table[0][0].read_code(&mut bitreader);
 
                 // how many bits to read
-                let bit_count = symbol & 0xf;
+                let ac_bits = symbol & 0xf;
 
                 // how many preceeding zeros there are before this coefficient
-                let run_length = (symbol & 0xf0) >> 4;
+                let run_length = symbol >> 4;
 
-                dbg!(bit_count, run_length);
+                let ac_val = bitreader.get_n_bits(ac_bits as u32).unwrap();
+                // is this the final AC coefficient? like, nothing else to do?
+                let ac_coeff = sign_code(ac_bits as u32, ac_val);
+
+                // first few AC coefficients
+                // 25, 7, 1, 3, 1, -1, -2, -5, 1
+
+                // it looks like only the DC coefficients are predicted from the previous
+                // thing, which actually kinda makes this way easier
+                // could maybe process JPEG in parallel with a parallel prefix scan
+                // and fixup DC coefficient with basic add later
+
+                println!("First AC coefficient: {ac_coeff}");
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
                 println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
@@ -408,32 +411,9 @@ fn main() -> Result<(), std::io::Error> {
 
                         ht.lookup.insert(HuffmanCode { code, bits }, symbol);
 
-                        // if ht_is_dc {
-                        //     println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
-                        // } else {
-                        //     // bit count is in the low 4 bits of the symbol
-
-                        //     let bit_count = symbol & 0xf;
-
-                        //     // how many preceeding zeros there are before this coefficient
-                        //     let run_length = (symbol & 0xf0) >> 4;
-
-                        //     println!(
-                        //         "({}, {})    \t:  {:0width$b}",
-                        //         bit_count,
-                        //         run_length,
-                        //         code,
-                        //         width = bits
-                        //     );
-                        // }
-
                         code += 1;
                     }
                 }
-
-                // println!("Elements: {}", buf.iter().map(|x| *x as u32).sum::<u32>());
-
-                // huffman_table.push(ht);
 
                 // so AC is actually stored at index 0,
                 // DC tree at index 1
