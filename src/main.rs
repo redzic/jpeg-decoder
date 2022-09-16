@@ -304,6 +304,14 @@ fn main() -> Result<(), std::io::Error> {
 
                 println!("coeffs: {:?}", mcu_block);
 
+                // dequantize
+                // assume luma block for now
+                for i in 0..64 {
+                    mcu_block[i] *= quant_matrices[0][i] as i16;
+                }
+
+                println!("after dequantization: {:?}", mcu_block);
+
                 // TODO how to know when to stop decoding AC coefficients?
                 // also like, how exactly is everything actually laid out?
 
