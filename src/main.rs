@@ -291,6 +291,8 @@ fn main() -> Result<(), std::io::Error> {
                     idx += run_length as usize;
                     mcu_block[idx] = ac_coeff;
 
+                    idx += 1;
+
                     println!("AC coeff: {ac_coeff}");
 
                     // if ac_coeff == 0,
@@ -299,6 +301,8 @@ fn main() -> Result<(), std::io::Error> {
                         break;
                     }
                 }
+
+                println!("coeffs: {:?}", mcu_block);
 
                 // TODO how to know when to stop decoding AC coefficients?
                 // also like, how exactly is everything actually laid out?
