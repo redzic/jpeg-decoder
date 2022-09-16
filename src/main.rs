@@ -42,7 +42,7 @@ fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
     Ok(buf[0])
 }
 
-fn print_8x8_table<T: Display + Copy>(x: &[T; 64]) {
+fn print_8x8_matrix<T: Display + Copy>(x: &[T; 64]) {
     for chunk in x.chunks_exact(8) {
         print!("[");
         for &x in chunk {
@@ -339,7 +339,7 @@ fn main() -> Result<(), std::io::Error> {
                 }
 
                 println!("DCT coefficients before zigzag descan:");
-                print_8x8_table(&mcu_block);
+                print_8x8_matrix(&mcu_block);
 
                 // undo zigzag scan order
                 let mut mcu_coeffs = zigzag_descan(&mcu_block);
@@ -351,7 +351,7 @@ fn main() -> Result<(), std::io::Error> {
                 }
 
                 println!("DCT coefficients after zizag descan and dequantization:");
-                print_8x8_table(&mcu_coeffs);
+                print_8x8_matrix(&mcu_coeffs);
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
                 println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
@@ -420,7 +420,7 @@ fn main() -> Result<(), std::io::Error> {
 
                 println!("Quant Matrix: {}-bit", if qt_is_8_bit { "8" } else { "16" });
                 print_dst_quant_table(dst);
-                print_8x8_table(&quant_matrices[dst as usize]);
+                print_8x8_matrix(&quant_matrices[dst as usize]);
                 println!();
             }
             JPEG_DEFINE_HUFFMAN_TABLE => {
