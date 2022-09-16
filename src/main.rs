@@ -80,6 +80,22 @@ impl HuffmanTree {
             lookup: HashMap::new(),
         }
     }
+
+    fn read_code(&self, bitreader: &mut BitReader) -> u8 {
+        let mut code: HuffmanCode = Default::default();
+        loop {
+            // read bit
+            let bit = bitreader.get_bit().unwrap();
+
+            code.bits += 1;
+            code.code <<= 1;
+            code.code |= bit as u16;
+
+            if let Some(x) = self.lookup.get(&code) {
+                return *x;
+            }
+        }
+    }
 }
 
 pub fn sign_code(n_bits: u32, code: u16) -> i16 {
@@ -144,7 +160,7 @@ fn main() -> Result<(), std::io::Error> {
 
     // up to 4 components
     // index with
-    // [is_dc][is_luma]
+    // [is_dc][component]
     let mut huffman_table: [[HuffmanTree; 2]; 2] = [
         [HuffmanTree::new(), HuffmanTree::new()],
         [HuffmanTree::new(), HuffmanTree::new()],
@@ -234,31 +250,41 @@ fn main() -> Result<(), std::io::Error> {
 
                 // decode luma DC coefficient
                 // Get length of first coefficient
-                let dc_bits = {
-                    let mut code: HuffmanCode = Default::default();
-                    loop {
-                        // read bit
-                        let bit = bitreader.get_bit().unwrap();
 
-                        code.bits += 1;
-                        code.code <<= 1;
-                        code.code |= bit as u16;
-
-                        if let Some(x) = huffman_table[1][0].lookup.get(&code) {
-                            break *x;
-                        }
-                    }
-                };
+                let dc_bits = huffman_table[1][0].read_code(&mut bitreader);
 
                 // get N bits
                 let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
 
+                let mut prev_dc_coeff = 0;
+
                 // Uhh... I don't think this is the correct code unfortunately
-                let dc_val = sign_code(dc_bits as u32, dc_val);
+                let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
 
-                dbg!(dc_val);
+                println!("DC coeff: {dc_coeff}");
 
-                println!();
+                // first couple of DC coefficients:
+                // -87
+                // -41
+                // 12
+                // -51
+                // -54
+                // 15
+                // -64
+                // -51
+                // 14
+
+                // decode AC coefficients
+
+                let symbol = huffman_table[0][0].read_code(&mut bitreader);
+
+                // how many bits to read
+                let bit_count = symbol & 0xf;
+
+                // how many preceeding zeros there are before this coefficient
+                let run_length = (symbol & 0xf0) >> 4;
+
+                dbg!(bit_count, run_length);
 
                 println!("[BYTE STREAM] data len: {} bytes", data.len());
                 println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
