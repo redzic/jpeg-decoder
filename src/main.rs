@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read};
 use std::mem::size_of;
 
 const JPEG_START_OF_IMAGE: u16 = 0xffd8;
@@ -111,7 +111,7 @@ pub fn sign_code(n_bits: u32, code: u16) -> i16 {
 }
 
 #[rustfmt::skip]
-const ZIGZAG_ORDER: [usize; 64] = [
+const _ZIGZAG_ORDER: [usize; 64] = [
      0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
     12, 19,	26, 33, 40, 48, 41, 34,
@@ -292,7 +292,7 @@ fn main() -> Result<(), std::io::Error> {
                 // get N bits
                 let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
 
-                let mut prev_dc_coeff = 0;
+                let prev_dc_coeff = 0;
 
                 let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
 
@@ -517,8 +517,9 @@ fn main() -> Result<(), std::io::Error> {
                 for _ in 0..num_components {
                     reader.read_exact(&mut buf)?;
 
-                    let vdec = buf[1] & 0xf;
-                    let hdec = buf[1] & 0xf0;
+                    // TODO figure out how to use these
+                    let _vdec = buf[1] & 0xf;
+                    let _hdec = buf[1] & 0xf0;
 
                     dashes();
                     println!("     Component ID: {} ({})", buf[0], comp_id(buf[0]));
