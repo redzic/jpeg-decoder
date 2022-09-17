@@ -74,8 +74,8 @@ const ZIGZAG_DECODE_ORDER: [usize; 64] = [
 pub fn zigzag_descan(coeffs: &[i16; 64]) -> [i16; 64] {
     let mut new = [0; 64];
 
-    for (idx, &select_idx) in ZIGZAG_DECODE_ORDER.iter().enumerate() {
-        new[idx] = coeffs[select_idx];
+    for i in 0..64 {
+        new[i] = coeffs[ZIGZAG_DECODE_ORDER[i]];
     }
 
     new
