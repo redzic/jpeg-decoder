@@ -43,6 +43,10 @@ impl<'a> BitReader<'a> {
         let byte = if let Some(byte) = self.cached_byte {
             byte
         } else {
+            // TODO, if possible, do this branch only once instead of
+            // every time get_bit() is called.
+            // although we are gonna have to do the "refill" stuff
+            // before doing any other optimizations, I suppose.
             let byte = read_u8(&mut self.reader).ok()?;
 
             self.cached_byte = Some(byte);
@@ -52,6 +56,7 @@ impl<'a> BitReader<'a> {
 
         let shift = 7 - self.bit_offset;
 
+        // TODO later optimize dynamic shift into shift by 1
         let bit = (byte >> shift) & 1 != 0;
 
         self.bit_offset = (self.bit_offset + 1) % 8;
