@@ -85,6 +85,62 @@ pub struct Decoder {
     reader: BufReader<File>,
 }
 
+fn decode_mcu_block(
+    dc_huff_tree: &HuffmanTree,
+    ac_huff_tree: &HuffmanTree,
+    quant_matrix: &[u8; 64],
+    bitreader: &mut BitReader,
+) -> [i16; 64] {
+    let dc_bits = dc_huff_tree.read_code(bitreader).unwrap();
+
+    // get N bits
+    let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
+
+    let prev_dc_coeff = 0;
+
+    let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
+
+    // before de-zigzag
+    let mut mcu_block = [0; 8 * 8];
+    mcu_block[0] = dc_coeff;
+
+    let mut idx = 1;
+    loop {
+        let symbol = ac_huff_tree.read_code(bitreader).unwrap();
+
+        // how many bits to read
+        let ac_bits = symbol & 0xf;
+
+        // how many preceeding zeros there are before this coefficient
+        let run_length = symbol >> 4;
+
+        let ac_val = bitreader.get_n_bits(ac_bits as u32).unwrap();
+        // is this the final AC coefficient? like, nothing else to do?
+        let ac_coeff = sign_code(ac_bits as u32, ac_val);
+
+        idx += run_length as usize;
+        mcu_block[idx] = ac_coeff;
+
+        idx += 1;
+
+        // this apparently indicates the end of the block.
+        if ac_coeff == 0 {
+            break;
+        }
+    }
+
+    // undo zigzag scan order
+    let mut mcu_coeffs = zigzag_descan(&mcu_block);
+
+    // dequantize
+    // assume luma block for now
+    for i in 0..64 {
+        mcu_coeffs[i] *= quant_matrix[i] as i16;
+    }
+
+    mcu_coeffs
+}
+
 impl Decoder {
     pub fn new(file: File) -> Self {
         Decoder {
@@ -93,7 +149,7 @@ impl Decoder {
     }
 
     pub fn decode(&mut self) -> Result<(), DecodeError> {
-        let mut quant_matrices = [[0; 64]; 2];
+        let mut quant_matrices = [[0u8; 64]; 2];
         let mut quant_mapping = Vec::new();
 
         // up to 4 components
@@ -131,75 +187,19 @@ impl Decoder {
 
                     self.reader.seek_relative((len - 2) as i64)?;
 
-                    // Any time we encounter 0xFF00, it's just 0xFF.
-                    // So we basically need to remove any 0 bytes, I guess.
-
-                    // Keep reading bytes
-                    // If you encounter 0xFF, if the next byte is 0x00,
-                    // just remove the 0x00 part.
-                    // Otherwise, if there's any other byte afterwards,
-                    // break out of the loop (0xFFD9).
-
-                    // Byte can occur at any position.
-
                     let mut bitreader = BitReader::new(&mut self.reader);
 
-                    // decode luma DC coefficient
-                    // Get length of first coefficient
+                    // decode luma DC block
 
-                    let dc_bits = huffman_table[1][0].read_code(&mut bitreader).unwrap();
+                    let mcu_block = decode_mcu_block(
+                        &huffman_table[1][0],
+                        &huffman_table[0][0],
+                        &quant_matrices[0],
+                        &mut bitreader,
+                    );
 
-                    // get N bits
-                    let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
-
-                    let prev_dc_coeff = 0;
-
-                    let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
-
-                    // before de-zigzag
-                    let mut mcu_block = [0; 8 * 8];
-                    mcu_block[0] = dc_coeff;
-
-                    let mut idx = 1;
-                    loop {
-                        let symbol = huffman_table[0][0].read_code(&mut bitreader).unwrap();
-
-                        // how many bits to read
-                        let ac_bits = symbol & 0xf;
-
-                        // how many preceeding zeros there are before this coefficient
-                        let run_length = symbol >> 4;
-
-                        let ac_val = bitreader.get_n_bits(ac_bits as u32).unwrap();
-                        // is this the final AC coefficient? like, nothing else to do?
-                        let ac_coeff = sign_code(ac_bits as u32, ac_val);
-
-                        idx += run_length as usize;
-                        mcu_block[idx] = ac_coeff;
-
-                        idx += 1;
-
-                        // if ac_coeff == 0,
-                        // that apparently indicates the end of the block.
-                        if ac_coeff == 0 {
-                            break;
-                        }
-                    }
-
-                    println!("DCT coefficients before zigzag descan:");
+                    println!("DCT coefficients:");
                     print_8x8_matrix(&mcu_block);
-
-                    // undo zigzag scan order
-                    let mut mcu_coeffs = zigzag_descan(&mcu_block);
-
-                    // dequantize
-                    // assume luma block for now
-                    for i in 0..64 {
-                        mcu_coeffs[i] *= quant_matrices[0][i] as i16;
-                    }
-
-                    println!("DCT coefficients after zizag descan and dequantization:");
-                    print_8x8_matrix(&mcu_coeffs);
 
                     // Skip other bytes
                     self.reader.seek(SeekFrom::End(-2))?;
