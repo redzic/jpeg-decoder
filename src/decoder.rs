@@ -86,6 +86,23 @@ pub struct Decoder {
 }
 
 fn decode_mcu_block(
+    huff_trees: &[[HuffmanTree; 2]; 2],
+    quant_matrices: &[[u8; 64]; 2],
+    bitreader: &mut BitReader,
+) -> [[i16; 64]; 3] {
+    // 8x8 blocks stored in this order:
+    // Y, Cr, Cb
+
+    // huff tree:
+    // [component][is_dc]
+    let y = decode_matrix(&huff_trees[0], &quant_matrices[0], bitreader);
+    let cr = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader);
+    let cb = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader);
+
+    [y, cr, cb]
+}
+
+fn decode_matrix(
     huff_trees: &[HuffmanTree; 2],
     quant_matrix: &[u8; 64],
     bitreader: &mut BitReader,
@@ -193,10 +210,12 @@ impl Decoder {
                     // decode luma DC block
 
                     let mcu_block =
-                        decode_mcu_block(&huffman_table[0], &quant_matrices[0], &mut bitreader);
+                        decode_mcu_block(&huffman_table, &quant_matrices, &mut bitreader);
 
-                    println!("DCT coefficients:");
-                    print_8x8_matrix(&mcu_block);
+                    for matrix in &mcu_block {
+                        println!("DCT coefficients:");
+                        print_8x8_matrix(matrix);
+                    }
 
                     // Skip other bytes
                     self.reader.seek(SeekFrom::End(-2))?;
