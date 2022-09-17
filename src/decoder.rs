@@ -88,11 +88,12 @@ pub struct Decoder {
 // TODO would be nice to pass in array of length 2
 // for huffman trees, to reduce register usage.
 fn decode_mcu_block(
-    dc_huff_tree: &HuffmanTree,
-    ac_huff_tree: &HuffmanTree,
+    huff_trees: &[HuffmanTree; 2],
     quant_matrix: &[u8; 64],
     bitreader: &mut BitReader,
 ) -> [i16; 64] {
+    let [ac_huff_tree, dc_huff_tree] = huff_trees;
+
     let dc_bits = dc_huff_tree.read_code(bitreader).unwrap();
 
     // get N bits
@@ -156,7 +157,7 @@ impl Decoder {
 
         // up to 4 components
         // index with
-        // [is_dc][component]
+        // [component][is_dc]
         let mut huffman_table: [[HuffmanTree; 2]; 2] = [
             [HuffmanTree::new(), HuffmanTree::new()],
             [HuffmanTree::new(), HuffmanTree::new()],
@@ -193,12 +194,8 @@ impl Decoder {
 
                     // decode luma DC block
 
-                    let mcu_block = decode_mcu_block(
-                        &huffman_table[1][0],
-                        &huffman_table[0][0],
-                        &quant_matrices[0],
-                        &mut bitreader,
-                    );
+                    let mcu_block =
+                        decode_mcu_block(&huffman_table[0], &quant_matrices[0], &mut bitreader);
 
                     println!("DCT coefficients:");
                     print_8x8_matrix(&mcu_block);
@@ -331,7 +328,7 @@ impl Decoder {
 
                     // so AC is actually stored at index 0,
                     // DC tree at index 1
-                    huffman_table[is_dc as usize][ht_num as usize] = ht;
+                    huffman_table[ht_num as usize][is_dc as usize] = ht;
 
                     // TODO for check_decoder, ensure symbols read equals
                     // sum of symbols read, and complies with the length
