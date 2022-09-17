@@ -85,6 +85,8 @@ pub struct Decoder {
     reader: BufReader<File>,
 }
 
+// TODO would be nice to pass in array of length 2
+// for huffman trees, to reduce register usage.
 fn decode_mcu_block(
     dc_huff_tree: &HuffmanTree,
     ac_huff_tree: &HuffmanTree,
