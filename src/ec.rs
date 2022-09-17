@@ -28,7 +28,6 @@ impl HuffmanTree {
     pub fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
         let mut code: HuffmanCode = Default::default();
         loop {
-            // read bit
             let bit = bitreader.get_bit()?;
 
             code.bits += 1;
@@ -46,7 +45,6 @@ pub fn sign_code(n_bits: u32, code: u16) -> i16 {
     if ((code as u32) << 1) >> n_bits != 0 {
         code as i16
     } else {
-        // 0
         let max_val = (1 << n_bits) - 1;
         code as i16 - max_val
     }

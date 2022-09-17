@@ -21,7 +21,6 @@ impl<'a> BitReader<'a> {
             return Some(ret);
         }
 
-        // None
         None
     }
 
