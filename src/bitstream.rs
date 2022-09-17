@@ -40,38 +40,37 @@ impl<'a> BitReader<'a> {
     pub fn get_bit(&mut self) -> Option<bool> {
         // skip over 0x00 in 0xff00 found in bitstream
 
-        // TODO this could be optimized to use shift by 1
-        // instead of dynamic shift
-        loop {
-            if let Some(byte) = self.cached_byte {
-                let shift = 7 - self.bit_offset;
+        let byte = if let Some(byte) = self.cached_byte {
+            byte
+        } else {
+            let byte = read_u8(&mut self.reader).ok()?;
 
-                let bit = (byte >> shift) & 1 != 0;
+            self.cached_byte = Some(byte);
 
-                self.bit_offset = (self.bit_offset + 1) % 8;
+            byte
+        };
 
-                if self.bit_offset == 0 {
-                    // reached end of byte, read next byte
-                    let cached_byte = read_u8(&mut self.reader).ok()?;
+        let shift = 7 - self.bit_offset;
 
-                    if cached_byte == 0xff {
-                        let next_byte = read_u8(&mut self.reader).ok()?;
-                        if next_byte != 0x00 {
-                            return None;
-                        }
-                    }
+        let bit = (byte >> shift) & 1 != 0;
 
-                    self.cached_byte = Some(cached_byte);
+        self.bit_offset = (self.bit_offset + 1) % 8;
+
+        if self.bit_offset == 0 {
+            // reached end of byte, read next byte
+            let cached_byte = read_u8(&mut self.reader).ok()?;
+
+            if cached_byte == 0xff {
+                let next_byte = read_u8(&mut self.reader).ok()?;
+                if next_byte != 0x00 {
+                    return None;
                 }
-
-                return Some(bit);
-            } else {
-                let byte = read_u8(&mut self.reader).ok()?;
-                self.cached_byte = Some(byte);
-
-                continue;
             }
+
+            self.cached_byte = Some(cached_byte);
         }
+
+        return Some(bit);
     }
 
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
