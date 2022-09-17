@@ -71,7 +71,7 @@ const ZIGZAG_DECODE_ORDER: [usize; 64] = [
    35, 36, 48, 49, 57, 58, 62, 63,
 ];
 
-pub fn zigzag_descan(coeffs: &[i16; 64]) -> [i16; 64] {
+pub fn descan_zigzag(coeffs: &[i16; 64]) -> [i16; 64] {
     let mut new = [0; 64];
 
     for i in 0..64 {
@@ -131,7 +131,7 @@ fn decode_mcu_block(
     }
 
     // undo zigzag scan order
-    let mut mcu_coeffs = zigzag_descan(&mcu_block);
+    let mut mcu_coeffs = descan_zigzag(&mcu_block);
 
     // dequantize
     // assume luma block for now
