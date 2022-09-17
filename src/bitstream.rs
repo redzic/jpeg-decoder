@@ -24,9 +24,6 @@ pub(crate) struct BitReader<'a> {
     cached_byte: Option<u8>,
 
     bit_offset: u32,
-
-    // skip next byte if 0x00 and previous byte was 0xff
-    pub skipped: usize,
 }
 
 impl<'a> BitReader<'a> {
@@ -35,15 +32,11 @@ impl<'a> BitReader<'a> {
             reader,
             bit_offset: 0,
             cached_byte: None,
-            skipped: 0,
         }
     }
 
-    // before:
-
-    // [BYTE STREAM] data len: 44679 bytes
-    // [BYTE STREAM]  skipped: 182 bytes
-
+    // Only use for reading start of scan data
+    // Not a general purpose get_bit function
     pub fn get_bit(&mut self) -> Option<bool> {
         // skip over 0x00 in 0xff00 found in bitstream
 
@@ -63,8 +56,6 @@ impl<'a> BitReader<'a> {
 
                     if cached_byte == 0xff {
                         let next_byte = read_u8(&mut self.reader).ok()?;
-                        self.skipped += 1;
-                        // assert!(next_byte == 0x00);
                         if next_byte != 0x00 {
                             return None;
                         }
