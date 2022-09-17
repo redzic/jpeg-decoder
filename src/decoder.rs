@@ -93,8 +93,6 @@ impl Decoder {
     }
 
     pub fn decode(&mut self) -> Result<(), DecodeError> {
-        let mut buf = [0; 2];
-
         let mut quant_matrices = [[0; 64]; 2];
         let mut quant_mapping = Vec::new();
 
@@ -107,18 +105,15 @@ impl Decoder {
         ];
 
         loop {
-            // read >H (python unpack notation), this means
-            // we read a big-endian unsigned short.
-
-            if self.reader.read_exact(&mut buf).is_err() {
-                break;
-            }
-
             // Very tiny optimization idea: avoid swapping bytes when
             // reading the marker by just comparing the bytes already
             // swapped (on little endian). On big endian, compare the
             // bytes as normal. No swapping required either way.
-            let marker = u16::from_be_bytes(buf);
+            let marker = if let Ok(marker) = read_u16(&mut self.reader) {
+                marker
+            } else {
+                break;
+            };
 
             println!("{}", get_jpeg_segment_name(marker));
 
