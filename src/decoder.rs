@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
-use std::io;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::mem::size_of;
 
-use crate::bitstream::BitReader;
+use crate::bitstream::{read_u16, read_u8, BitReader};
 use crate::ec::{sign_code, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
@@ -26,24 +25,8 @@ fn get_jpeg_segment_name(marker: u16) -> &'static str {
         JPEG_DEFINE_HUFFMAN_TABLE => "Define Huffman Table",
         JPEG_START_OF_SCAN => "Start of Scan",
         JPEG_END_OF_IMAGE => "End of Image",
-        _ => panic!("invalid jpeg marker"),
+        _ => panic!("invalid jpeg marker, found 0x{:x}", marker),
     }
-}
-
-/// Reads unsigned short in big-endian format
-fn read_u16(reader: &mut BufReader<File>) -> io::Result<u16> {
-    let mut buf = [0; 2];
-    reader.read_exact(&mut buf)?;
-
-    Ok(u16::from_be_bytes(buf))
-}
-
-/// Reads byte
-fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
-    let mut buf = [0];
-    reader.read_exact(&mut buf)?;
-
-    Ok(buf[0])
 }
 
 fn print_8x8_matrix<T: Display + Copy>(x: &[T; 64]) {
@@ -164,46 +147,7 @@ impl Decoder {
 
                     // Byte can occur at any position.
 
-                    let mut data = vec![];
-
-                    let mut prev_byte_was_0xff = false;
-
-                    // Is memmap worth looking into?
-                    // What's the fastest way to do file I/O?
-                    // Any way to avoid copying from inner buffer
-                    // of BufReader?
-                    // Memory is probably a huge bottleneck.
-
-                    let mut skipped_bytes = 0;
-
-                    // Uhh is there a way to do this that isn't really slow?
-                    // Might have to use memchr or something.
-                    // But a continuous memchr that actually marks all fucking
-                    // bytes instead of inefficiently stopping.
-                    loop {
-                        // May or may not actually use the byte in each iter of the loop.
-                        let byte = read_u8(&mut self.reader)?;
-                        if prev_byte_was_0xff {
-                            if byte == 0x00 {
-                                // push previous byte (since current one is 0x00)
-                                data.push(0xFF);
-                                skipped_bytes += 1;
-                                prev_byte_was_0xff = false;
-                                continue;
-                            } else {
-                                break;
-                            }
-                        } else {
-                            if byte == 0xFF {
-                                // will be added in next loop iteration
-                                prev_byte_was_0xff = true;
-                            } else {
-                                data.push(byte);
-                            }
-                        }
-                    }
-
-                    let mut bitreader = BitReader::new(&data);
+                    let mut bitreader = BitReader::new(&mut self.reader);
 
                     // decode luma DC coefficient
                     // Get length of first coefficient
@@ -262,8 +206,8 @@ impl Decoder {
                     println!("DCT coefficients after zizag descan and dequantization:");
                     print_8x8_matrix(&mcu_coeffs);
 
-                    println!("[BYTE STREAM] data len: {} bytes", data.len());
-                    println!("[BYTE STREAM]  skipped: {} bytes", skipped_bytes);
+                    // Skip other bytes
+                    self.reader.seek(SeekFrom::End(-2))?;
                 }
                 JPEG_APPLICATION_DEFAULT_HEADER => {
                     let len = read_u16(&mut self.reader)?;
