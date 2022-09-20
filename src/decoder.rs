@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::mem::size_of;
@@ -83,6 +83,12 @@ pub fn descan_zigzag(coeffs: &[i16; 64]) -> [i16; 64] {
 
 pub struct Decoder {
     reader: BufReader<File>,
+    d: Dimensions,
+}
+
+struct Dimensions {
+    w: u16,
+    h: u16,
 }
 
 fn decode_mcu_block(
@@ -95,6 +101,8 @@ fn decode_mcu_block(
 
     // huff tree:
     // [component][is_dc]
+
+    // TODO do not assume 3 components
     let y = decode_matrix(&huff_trees[0], &quant_matrices[0], bitreader);
     let cr = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader);
     let cb = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader);
@@ -109,11 +117,15 @@ fn decode_matrix(
 ) -> [i16; 64] {
     let [ac_huff_tree, dc_huff_tree] = huff_trees;
 
+    // alright so apparently this unwrap is failing because we are just reading an invalid
+    // code, not because there are too many bits?
     let dc_bits = dc_huff_tree.read_code(bitreader).unwrap();
 
     // get N bits
     let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
 
+    // TODO fixup dc coefficient based on prediction.
+    // we are not treating dc coefficient like it's delta coded currently.
     let prev_dc_coeff = 0;
 
     let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
@@ -123,8 +135,14 @@ fn decode_matrix(
     mcu_block[0] = dc_coeff;
 
     let mut idx = 1;
+
     loop {
         let symbol = ac_huff_tree.read_code(bitreader).unwrap();
+
+        // EOB reached
+        if symbol == 0 {
+            break;
+        }
 
         // how many bits to read
         let ac_bits = symbol & 0xf;
@@ -133,16 +151,15 @@ fn decode_matrix(
         let run_length = symbol >> 4;
 
         let ac_val = bitreader.get_n_bits(ac_bits as u32).unwrap();
-        // is this the final AC coefficient? like, nothing else to do?
         let ac_coeff = sign_code(ac_bits as u32, ac_val);
 
         idx += run_length as usize;
+
         mcu_block[idx] = ac_coeff;
 
         idx += 1;
 
-        // this apparently indicates the end of the block.
-        if ac_coeff == 0 {
+        if idx >= 64 {
             break;
         }
     }
@@ -151,7 +168,6 @@ fn decode_matrix(
     let mut mcu_coeffs = descan_zigzag(&mcu_block);
 
     // dequantize
-    // assume luma block for now
     for i in 0..64 {
         mcu_coeffs[i] *= quant_matrix[i] as i16;
     }
@@ -163,6 +179,7 @@ impl Decoder {
     pub fn new(file: File) -> Self {
         Decoder {
             reader: BufReader::new(file),
+            d: Dimensions { w: 0, h: 0 },
         }
     }
 
@@ -207,14 +224,18 @@ impl Decoder {
 
                     let mut bitreader = BitReader::new(&mut self.reader);
 
-                    // decode luma DC block
+                    for y in 0..self.d.h / 8 {
+                        for x in 0..self.d.w / 8 {
+                            let mcu_block =
+                                decode_mcu_block(&huffman_table, &quant_matrices, &mut bitreader);
 
-                    let mcu_block =
-                        decode_mcu_block(&huffman_table, &quant_matrices, &mut bitreader);
+                            let channel = ["Y", "Cr", "Cb"];
 
-                    for matrix in &mcu_block {
-                        println!("DCT coefficients:");
-                        print_8x8_matrix(matrix);
+                            for i in 0..3 {
+                                println!("{} DCT matrix:", channel[i]);
+                                print_8x8_matrix(&mcu_block[i]);
+                            }
+                        }
                     }
 
                     // Skip other bytes
@@ -366,6 +387,8 @@ impl Decoder {
 
                     println!(" {}-bit precision", data_precision);
                     println!(" Resolution: {width}x{height} px");
+                    self.d.w = width;
+                    self.d.h = height;
                     if num_components == 1 {
                         println!(" Monochrome (1 component)");
                     } else {

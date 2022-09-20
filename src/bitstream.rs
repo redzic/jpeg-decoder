@@ -67,7 +67,14 @@ impl<'a> BitReader<'a> {
 
             if cached_byte == 0xff {
                 let next_byte = read_u8(&mut self.reader).ok()?;
+                // we hit 0xffd9,
+                // apparently
+
+                // TODO investigate if there's an edge case
+                // where last couple of bits are being skipped
+                // due to this
                 if next_byte != 0x00 {
+                    // println!("Hit this case, {next_byte:X}");
                     return None;
                 }
             }
