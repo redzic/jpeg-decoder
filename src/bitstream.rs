@@ -47,7 +47,7 @@ impl<'a> BitReader<'a> {
             // every time get_bit() is called.
             // although we are gonna have to do the "refill" stuff
             // before doing any other optimizations, I suppose.
-            let byte = read_u8(&mut self.reader).ok()?;
+            let byte = read_u8(self.reader).ok()?;
 
             self.cached_byte = Some(byte);
 
@@ -63,10 +63,10 @@ impl<'a> BitReader<'a> {
 
         if self.bit_offset == 0 {
             // reached end of byte, read next byte
-            let cached_byte = read_u8(&mut self.reader).ok()?;
+            let cached_byte = read_u8(self.reader).ok()?;
 
             if cached_byte == 0xff {
-                let next_byte = read_u8(&mut self.reader).ok()?;
+                let next_byte = read_u8(self.reader).ok()?;
                 // we hit 0xffd9,
                 // apparently
 
@@ -82,7 +82,7 @@ impl<'a> BitReader<'a> {
             self.cached_byte = Some(cached_byte);
         }
 
-        return Some(bit);
+        Some(bit)
     }
 
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {

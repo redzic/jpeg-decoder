@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::mem::size_of;
@@ -224,8 +224,8 @@ impl Decoder {
 
                     let mut bitreader = BitReader::new(&mut self.reader);
 
-                    for y in 0..self.d.h / 8 {
-                        for x in 0..self.d.w / 8 {
+                    for _y in 0..self.d.h / 8 {
+                        for _x in 0..self.d.w / 8 {
                             let mcu_block =
                                 decode_mcu_block(&huffman_table, &quant_matrices, &mut bitreader);
 
