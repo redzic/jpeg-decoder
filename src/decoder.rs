@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::mem::size_of;
 
 use crate::bitstream::{read_u16, read_u8, BitReader};
@@ -187,6 +187,13 @@ impl Decoder {
         let mut quant_matrices = [[0u8; 64]; 2];
         let mut quant_mapping = Vec::new();
 
+        let mut out_file = File::create("out.ppm").unwrap();
+
+        // [r, g, b]
+        let mut rgb: Vec<[u8; 3]> = Vec::new();
+
+        let mut blocks = Vec::new();
+
         // up to 4 components
         // index with
         // [component][is_dc]
@@ -229,12 +236,14 @@ impl Decoder {
                             let mcu_block =
                                 decode_mcu_block(&huffman_table, &quant_matrices, &mut bitreader);
 
-                            let channel = ["Y", "Cr", "Cb"];
+                            blocks.push(mcu_block);
 
-                            for i in 0..3 {
-                                println!("{} DCT matrix:", channel[i]);
-                                print_8x8_matrix(&mcu_block[i]);
-                            }
+                            // let channel = ["Y", "Cr", "Cb"];
+
+                            // for i in 0..3 {
+                            //     println!("{} DCT matrix:", channel[i]);
+                            //     print_8x8_matrix(&mcu_block[i]);
+                            // }
                         }
                     }
 
@@ -387,6 +396,9 @@ impl Decoder {
 
                     println!(" {}-bit precision", data_precision);
                     println!(" Resolution: {width}x{height} px");
+
+                    out_file.write_all(format!("P6\n{width} {height}\n255\n").as_bytes())?;
+
                     self.d.w = width;
                     self.d.h = height;
                     if num_components == 1 {
@@ -448,6 +460,34 @@ impl Decoder {
                 }
             }
         }
+
+        let mut buf = vec![0; 3 * self.d.w as usize * self.d.h as usize];
+
+        let bh = (self.d.h / 8) as usize;
+        let bw = (self.d.w / 8) as usize;
+
+        let conv_px = |px: i16| (60.0 * (px as f64).abs() * 0.00778198242187500).min(255.0) as u8;
+
+        for y in 0..bh {
+            for x in 0..bw {
+                let block = blocks[y * bw + x];
+
+                // write coefficients as pixels
+
+                for y2 in 0..8 {
+                    for x2 in 0..8 {
+                        let r = conv_px(block[0][y2 * 8 + x2]);
+                        let g = conv_px(block[1][y2 * 8 + x2]);
+                        let b = conv_px(block[2][y2 * 8 + x2]);
+
+                        buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * self.d.w as usize + x2)..][..3]
+                            .copy_from_slice(&[r, g, b])
+                    }
+                }
+            }
+        }
+
+        out_file.write_all(&buf).unwrap();
 
         Ok(())
     }
