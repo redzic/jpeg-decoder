@@ -189,9 +189,6 @@ impl Decoder {
 
         let mut out_file = File::create("out.ppm").unwrap();
 
-        // [r, g, b]
-        let mut rgb: Vec<[u8; 3]> = Vec::new();
-
         let mut blocks = Vec::new();
 
         // up to 4 components
