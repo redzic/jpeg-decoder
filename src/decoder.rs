@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::mem::size_of;
 
 use crate::bitstream::{read_u16, read_u8, BitReader};
+use crate::dct::idct;
 use crate::ec::{sign_code, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
@@ -95,6 +96,7 @@ fn decode_mcu_block(
     huff_trees: &[[HuffmanTree; 2]; 2],
     quant_matrices: &[[u8; 64]; 2],
     bitreader: &mut BitReader,
+    pred: &mut [i16; 3],
 ) -> [[i16; 64]; 3] {
     // 8x8 blocks stored in this order:
     // Y, Cr, Cb
@@ -103,9 +105,9 @@ fn decode_mcu_block(
     // [component][is_dc]
 
     // TODO do not assume 3 components
-    let y = decode_matrix(&huff_trees[0], &quant_matrices[0], bitreader);
-    let cr = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader);
-    let cb = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader);
+    let y = decode_matrix(&huff_trees[0], &quant_matrices[0], bitreader, &mut pred[0]);
+    let cr = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader, &mut pred[1]);
+    let cb = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader, &mut pred[2]);
 
     [y, cr, cb]
 }
@@ -114,6 +116,7 @@ fn decode_matrix(
     huff_trees: &[HuffmanTree; 2],
     quant_matrix: &[u8; 64],
     bitreader: &mut BitReader,
+    dc_pred: &mut i16,
 ) -> [i16; 64] {
     let [ac_huff_tree, dc_huff_tree] = huff_trees;
 
@@ -124,11 +127,8 @@ fn decode_matrix(
     // get N bits
     let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
 
-    // TODO fixup dc coefficient based on prediction.
-    // we are not treating dc coefficient like it's delta coded currently.
-    let prev_dc_coeff = 0;
-
-    let dc_coeff = sign_code(dc_bits as u32, dc_val) + prev_dc_coeff;
+    let dc_coeff = sign_code(dc_bits as u32, dc_val) + *dc_pred;
+    *dc_pred = dc_coeff;
 
     // before de-zigzag
     let mut mcu_block = [0; 8 * 8];
@@ -231,19 +231,18 @@ impl Decoder {
 
                     let mut bitreader = BitReader::new(&mut self.reader);
 
+                    let mut dc_pred = [0; 3];
+
                     for _y in 0..self.d.h / 8 {
                         for _x in 0..self.d.w / 8 {
-                            let mcu_block =
-                                decode_mcu_block(&huffman_table, &quant_matrices, &mut bitreader);
+                            let mcu_block = decode_mcu_block(
+                                &huffman_table,
+                                &quant_matrices,
+                                &mut bitreader,
+                                &mut dc_pred,
+                            );
 
                             blocks.push(mcu_block);
-
-                            // let channel = ["Y", "Cr", "Cb"];
-
-                            // for i in 0..3 {
-                            //     println!("{} DCT matrix:", channel[i]);
-                            //     print_8x8_matrix(&mcu_block[i]);
-                            // }
                         }
                     }
 
@@ -472,16 +471,31 @@ impl Decoder {
             for x in 0..bw {
                 let block = blocks[y * bw + x];
 
+                let mut coeffs = [0.0; 64];
+                let mut out = [0.0; 64];
+
+                // copy luma dct coefficients
+
+                for i in 0..64 {
+                    coeffs[i] = block[0][i] as f64;
+                }
+
+                idct(&coeffs, &mut out);
+
+                // print_8x8_matrix(&out);
+
                 // write coefficients as pixels
 
                 for y2 in 0..8 {
                     for x2 in 0..8 {
-                        let r = conv_px(block[0][y2 * 8 + x2]);
-                        let g = conv_px(block[1][y2 * 8 + x2]);
-                        let b = conv_px(block[2][y2 * 8 + x2]);
+                        let r = out[y2 * 8 + x2] as u8;
+                        // let r = conv_px(block[0][y2 * 8 + x2]);
+                        // let g = conv_px(block[1][y2 * 8 + x2]);
+                        // let b = conv_px(block[2][y2 * 8 + x2]);
 
                         buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * self.d.w as usize + x2)..][..3]
-                            .copy_from_slice(&[r, g, b])
+                            // .copy_from_slice(&[r, g, b])
+                            .copy_from_slice(&[r; 3])
                     }
                 }
             }
