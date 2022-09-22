@@ -485,7 +485,7 @@ impl Decoder {
 
                 let mut out = [[0.0; 64]; 3];
 
-                // copy luma dct coefficients
+                // cast dct coefficients to f64
                 for p in 0..3 {
                     for i in 0..64 {
                         coeffs[p][i] = block[p][i] as f64;
