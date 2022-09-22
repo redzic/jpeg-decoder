@@ -483,23 +483,26 @@ impl Decoder {
             for x in 0..bw {
                 let block = blocks[y * bw + x];
 
-                let mut coeffs = [0.0; 64];
+                let mut coeffs = [[0.0; 64]; 3];
 
-                let mut out = [0.0; 64];
+                let mut out = [[0.0; 64]; 3];
 
                 // copy luma dct coefficients
-                for i in 0..64 {
-                    coeffs[i] = block[0][i] as f64;
+                for p in 0..3 {
+                    for i in 0..64 {
+                        coeffs[p][i] = block[p][i] as f64;
+                    }
                 }
 
-                idct(&coeffs, &mut out);
+                for p in 0..3 {
+                    idct(&coeffs[p], &mut out[p]);
+                }
 
                 for y2 in 0..8 {
                     for x2 in 0..8 {
-                        // let r = (out[y2 * 8 + x2] as i8 - i8::MIN) as u8;
-                        let yp = out[y2 * 8 + x2] + 128.0;
-                        let cb = 128.0;
-                        let cr = 128.0;
+                        let yp = out[0][y2 * 8 + x2] + 128.0;
+                        let cb = out[1][y2 * 8 + x2] + 128.0;
+                        let cr = out[2][y2 * 8 + x2] + 128.0;
 
                         let px = ycbcr_to_rgb(yp, cb, cr);
 
