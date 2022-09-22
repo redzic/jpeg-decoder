@@ -22,27 +22,14 @@ impl HuffmanTree {
     pub fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
         let mut code: HuffmanCode = Default::default();
         loop {
-            // Unwrap happens as soon as bitreader.get_bit() returns None
             let bit1 = bitreader.get_bit();
 
-            // so the bitreader actually returns Some(..)
-            // after it returns None,
-            // which is wrong...
-            // if bit1.is_none() {
-            // dbg!(bitreader.get_bit());
-            // }
-
-            // let bit = bitreader.get_bit()?;
             let bit = bit1?;
 
             code.bits += 1;
             code.code <<= 1;
             code.code |= bit as u16;
 
-            // dbg!(code.bits);
-
-            // returns lookup.get(&code) returns None
-            // many, many times before eventually get_bit returns false?
             if let Some(&symbol) = self.lookup.get(&code) {
                 return Some(symbol);
             }

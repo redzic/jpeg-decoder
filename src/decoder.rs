@@ -16,6 +16,8 @@ const JPEG_START_OF_FRAME: u16 = 0xffc0;
 const JPEG_DEFINE_HUFFMAN_TABLE: u16 = 0xffc4;
 const JPEG_START_OF_SCAN: u16 = 0xffda;
 const JPEG_END_OF_IMAGE: u16 = 0xffd9;
+const JPEG_PICT_INFO: u16 = 0xffec;
+const JPEG_ADOBE: u16 = 0xffee;
 
 fn get_jpeg_segment_name(marker: u16) -> &'static str {
     match marker {
@@ -26,6 +28,8 @@ fn get_jpeg_segment_name(marker: u16) -> &'static str {
         JPEG_DEFINE_HUFFMAN_TABLE => "Define Huffman Table",
         JPEG_START_OF_SCAN => "Start of Scan",
         JPEG_END_OF_IMAGE => "End of Image",
+        JPEG_PICT_INFO => "Picture Info",
+        JPEG_ADOBE => "Adobe APP14",
         _ => panic!("invalid jpeg marker, found 0x{:x}", marker),
     }
 }
@@ -284,94 +288,110 @@ impl Decoder {
                     println!("Thumbnail:    {tx}x{ty}\n");
                 }
                 JPEG_QUANTIZATION_TABLE => {
-                    let len = read_u16(&mut self.reader)? as usize - 3;
+                    // let len = read_u16(&mut self.reader)? as usize - 3;
+                    let mut len = read_u16(&mut self.reader)? as usize - 2;
+                    // one DQT can actually define multiple quant tables
+                    // so porsche.jpg doesn't decode because it defines 2 quant
+                    // tables with one DQT marker
 
-                    // TODO we handle this incorrectly for 16-bit
-                    assert!(len == 64);
+                    'dqt: loop {
+                        let qt_info = read_u8(&mut self.reader)?;
+                        len -= 1;
 
-                    let qt_info = read_u8(&mut self.reader)?;
+                        // bottom 4 bits are the actual dst
+                        let dst = qt_info & 0xf;
 
-                    // bottom 4 bits are the actual dst
-                    let dst = qt_info & 0xf;
+                        // index 0 or 1 only are allowed
+                        assert!(dst <= 1);
 
-                    // index 0 or 1 only are allowed
-                    assert!(dst <= 1);
+                        // if upper 4 bits are 0, 8-bit
+                        // otherwise 16-bit
+                        let qt_is_8_bit = (qt_info & 0xf0) == 0;
 
-                    // if upper 4 bits are 0, 8-bit
-                    // otherwise 16-bit
-                    let qt_is_8_bit = (qt_info & 0xf0) == 0;
+                        // for now we assume 8-bit, since 16-bit requires
+                        // reading twice as many bytes (roughly).
+                        assert!(qt_is_8_bit);
 
-                    // for now we assume 8-bit, since 16-bit requires
-                    // reading twice as many bytes (roughly).
-                    assert!(qt_is_8_bit);
+                        // TODO this isn't correct for 16-bit
+                        self.reader.read_exact(&mut quant_matrices[dst as usize])?;
 
-                    // TODO this isn't correct for 16-bit
-                    self.reader.read_exact(&mut quant_matrices[dst as usize])?;
+                        len -= 64;
 
-                    println!("Quant Matrix: {}-bit", if qt_is_8_bit { "8" } else { "16" });
-                    print_dst_quant_table(dst);
-                    print_8x8_matrix(&quant_matrices[dst as usize]);
-                    println!();
+                        println!("Quant Matrix: {}-bit", if qt_is_8_bit { "8" } else { "16" });
+                        print_dst_quant_table(dst);
+                        print_8x8_matrix(&quant_matrices[dst as usize]);
+                        println!();
+
+                        if len == 0 {
+                            break 'dqt;
+                        }
+                    }
                 }
                 JPEG_DEFINE_HUFFMAN_TABLE => {
-                    // Does jpeg require the huffman tables to be specified
-                    // in increasing component order?
-
                     // Up to 4 huffman tables are allowed in JPEG
 
                     // Not actually needed, but we do have to advance forward 2 bytes.
-                    let _len = read_u16(&mut self.reader)?;
+                    let mut len = read_u16(&mut self.reader)? - 2;
 
-                    let ht_info = read_u8(&mut self.reader)?;
+                    'dht: loop {
+                        let ht_info = read_u8(&mut self.reader)?;
+                        len -= 1;
 
-                    let ht_num = ht_info & 0xf;
-                    assert!(ht_num <= 1);
+                        let ht_num = ht_info & 0xf;
+                        assert!(ht_num <= 1);
 
-                    // bit index 4 (5th bit) specifies whether table is for AC/DC
-                    // 0 = DC, 1 = AC
-                    let is_dc = (ht_info >> 4) & 1 == 0;
+                        // bit index 4 (5th bit) specifies whether table is for AC/DC
+                        // 0 = DC, 1 = AC
+                        let is_dc = (ht_info >> 4) & 1 == 0;
 
-                    // TODO maybe make a build flag for extra checks or something
-                    // ensure bit index 5-7 is 0
-                    assert!(ht_info & 0b1110_0000 == 0);
+                        // TODO maybe make a build flag for extra checks or something
+                        // ensure bit index 5-7 is 0
+                        assert!(ht_info & 0b1110_0000 == 0);
 
-                    // I think component 0 is luma
-                    // and component 1 is chroma
+                        // I think component 0 is luma
+                        // and component 1 is chroma
 
-                    println!(
-                        "Component {ht_num}, {} huffman tree",
-                        if is_dc { "DC" } else { "AC" }
-                    );
+                        println!(
+                            "Component {ht_num}, {} huffman tree",
+                            if is_dc { "DC" } else { "AC" }
+                        );
 
-                    // read 16 bytes for child node counts for 16 levels of huffman tree
-                    let mut buf = [0; 16];
+                        // read 16 bytes for child node counts for 16 levels of huffman tree
+                        let mut buf = [0; 16];
 
-                    self.reader.read_exact(&mut buf)?;
+                        self.reader.read_exact(&mut buf)?;
+                        len -= 16;
 
-                    let mut code = 0u16;
-                    let mut bits = 0;
+                        let mut code = 0u16;
+                        let mut bits = 0;
 
-                    let mut ht = HuffmanTree {
-                        lookup: HashMap::new(),
-                    };
+                        let mut ht = HuffmanTree {
+                            lookup: HashMap::new(),
+                        };
 
-                    for tdepth in buf {
-                        code <<= 1;
-                        bits += 1;
+                        for tdepth in buf {
+                            code <<= 1;
+                            bits += 1;
 
-                        // TODO optimize symbol decoding
-                        for _ in 0..tdepth {
-                            let symbol = read_u8(&mut self.reader)?;
+                            // TODO optimize symbol decoding
+                            for _ in 0..tdepth {
+                                let symbol = read_u8(&mut self.reader)?;
+                                len -= 1;
 
-                            ht.lookup.insert(HuffmanCode { code, bits }, symbol);
+                                ht.lookup.insert(HuffmanCode { code, bits }, symbol);
 
-                            code += 1;
+                                code += 1;
+                            }
+                        }
+
+                        // so AC is actually stored at index 0,
+                        // DC tree at index 1
+                        huffman_table[ht_num as usize][is_dc as usize] = ht;
+
+                        if len == 0 {
+                            break 'dht;
                         }
                     }
-
-                    // so AC is actually stored at index 0,
-                    // DC tree at index 1
-                    huffman_table[ht_num as usize][is_dc as usize] = ht;
 
                     // TODO for check_decoder, ensure symbols read equals
                     // sum of symbols read, and complies with the length
