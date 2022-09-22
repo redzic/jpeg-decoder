@@ -465,16 +465,14 @@ impl Decoder {
         let bh = (self.d.h / 8) as usize;
         let bw = (self.d.w / 8) as usize;
 
-        let conv_px = |px: i16| (60.0 * (px as f64).abs() * 0.00778198242187500).min(255.0) as u8;
-
         fn ycbcr_to_rgb(y: f64, cb: f64, cr: f64) -> [u8; 3] {
             let r = f64::mul_add(1.402, cr - 128.0, y);
-            let g = y - 0.34414 * (cb - 128.0) - 0.71414 * (cr - 128.0);
+            let g = f64::mul_add(-0.71414, cr - 128.0, f64::mul_add(-0.34414, cb - 128.0, y));
             let b = f64::mul_add(1.772, cb - 128.0, y);
 
-            let r = r.clamp(0.0, 255.0) as u8;
-            let g = g.clamp(0.0, 255.0) as u8;
-            let b = b.clamp(0.0, 255.0) as u8;
+            let r = r as u8;
+            let g = g as u8;
+            let b = b as u8;
 
             [r, g, b]
         }
