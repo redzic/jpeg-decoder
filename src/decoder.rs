@@ -467,11 +467,24 @@ impl Decoder {
 
         let conv_px = |px: i16| (60.0 * (px as f64).abs() * 0.00778198242187500).min(255.0) as u8;
 
+        fn ycbcr_to_rgb(y: f64, cb: f64, cr: f64) -> [u8; 3] {
+            let r = y + 1.402 * (cr - 128.0);
+            let g = y - 0.34414 * (cb - 128.0) - 0.71414 * (cr - 128.0);
+            let b = y + 1.772 * (cb - 128.0);
+
+            let r = r.clamp(0.0, 255.0) as u8;
+            let g = g.clamp(0.0, 255.0) as u8;
+            let b = b.clamp(0.0, 255.0) as u8;
+
+            [r, g, b]
+        }
+
         for y in 0..bh {
             for x in 0..bw {
                 let block = blocks[y * bw + x];
 
                 let mut coeffs = [0.0; 64];
+
                 let mut out = [0.0; 64];
 
                 // copy luma dct coefficients
@@ -483,11 +496,15 @@ impl Decoder {
 
                 for y2 in 0..8 {
                     for x2 in 0..8 {
-                        let r = (out[y2 * 8 + x2] as i8 - i8::MIN) as u8;
+                        // let r = (out[y2 * 8 + x2] as i8 - i8::MIN) as u8;
+                        let yp = out[y2 * 8 + x2] + 128.0;
+                        let cb = 128.0;
+                        let cr = 128.0;
+
+                        let px = ycbcr_to_rgb(yp, cb, cr);
 
                         buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * self.d.w as usize + x2)..][..3]
-                            // .copy_from_slice(&[r, g, b])
-                            .copy_from_slice(&[r; 3])
+                            .copy_from_slice(&px)
                     }
                 }
             }
