@@ -169,7 +169,7 @@ fn decode_matrix(
 
     // dequantize
     for i in 0..64 {
-        mcu_coeffs[i] *= quant_matrix[i] as i16;
+        mcu_coeffs[i] *= quant_matrix[ZIGZAG_DECODE_ORDER[i]] as i16;
     }
 
     mcu_coeffs
