@@ -488,10 +488,7 @@ impl Decoder {
 
                 for y2 in 0..8 {
                     for x2 in 0..8 {
-                        let r = out[y2 * 8 + x2] as u8;
-                        // let r = conv_px(block[0][y2 * 8 + x2]);
-                        // let g = conv_px(block[1][y2 * 8 + x2]);
-                        // let b = conv_px(block[2][y2 * 8 + x2]);
+                        let r = (out[y2 * 8 + x2] as i8 - i8::MIN) as u8;
 
                         buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * self.d.w as usize + x2)..][..3]
                             // .copy_from_slice(&[r, g, b])
