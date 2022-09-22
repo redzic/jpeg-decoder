@@ -31,8 +31,8 @@ pub fn idct(inm: &[f64; 64], outm: &mut [f64; 64]) {
     fn get_px((x, y): (usize, usize), coeffs: &[[f64; 8]; 8]) -> f64 {
         let mut sum = 0.0;
 
-        for u in 0..=7 {
-            for v in 0..=7 {
+        for u in 0..8 {
+            for v in 0..8 {
                 let uf = u as f64;
                 let vf = v as f64;
                 sum += alpha(u)

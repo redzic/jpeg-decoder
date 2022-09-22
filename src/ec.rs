@@ -2,16 +2,10 @@ use std::collections::HashMap;
 
 use crate::bitstream::BitReader;
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq, Default)]
 pub(crate) struct HuffmanCode {
     pub code: u16,
     pub bits: u8,
-}
-
-impl Default for HuffmanCode {
-    fn default() -> Self {
-        Self { code: 0, bits: 0 }
-    }
 }
 
 pub(crate) struct HuffmanTree {
