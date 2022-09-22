@@ -475,16 +475,11 @@ impl Decoder {
                 let mut out = [0.0; 64];
 
                 // copy luma dct coefficients
-
                 for i in 0..64 {
                     coeffs[i] = block[0][i] as f64;
                 }
 
                 idct(&coeffs, &mut out);
-
-                // print_8x8_matrix(&out);
-
-                // write coefficients as pixels
 
                 for y2 in 0..8 {
                     for x2 in 0..8 {
