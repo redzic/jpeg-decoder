@@ -8,19 +8,20 @@ use crate::dct::idct;
 use crate::ec::{sign_code, to_index, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
-#[repr(u16)]
+// TODO possible don't use this representation of the enum
 #[derive(Copy, Clone)]
 enum JpegMarker {
-    StartOfImage = 0xffd8,
-    ApplicationDefaultHeader = 0xffe0,
-    DefineQuantizationTable = 0xffdb,
-    StartOfFrame = 0xffc0,
-    DefineHuffmanTable = 0xffc4,
-    StartOfScan = 0xffda,
-    EndOfImage = 0xffd9,
-    PictInfo = 0xffec,
-    AdobeApp14 = 0xffee,
-    Comment = 0xfffe,
+    StartOfImage,
+    ApplicationDefaultHeader,
+    DefineQuantizationTable,
+    StartOfFrame,
+    DefineHuffmanTable,
+    StartOfScan,
+    EndOfImage,
+    PictInfo,
+    AdobeApp14,
+    Comment,
+    AppSeg2,
 }
 
 impl JpegMarker {
@@ -36,6 +37,7 @@ impl JpegMarker {
             JpegMarker::PictInfo => "Picture Info",
             JpegMarker::AdobeApp14 => "Adobe APP14",
             JpegMarker::Comment => "Comment",
+            JpegMarker::AppSeg2 => "ICC color profile, FlashPix",
         }
     }
 }
@@ -67,6 +69,7 @@ impl TryFrom<u16> for JpegMarker {
             0xffec => Ok(JpegMarker::PictInfo),
             0xffee => Ok(JpegMarker::AdobeApp14),
             0xfffe => Ok(JpegMarker::Comment),
+            0xffe2 => Ok(JpegMarker::AppSeg2),
             _ => Err(InvalidJpegMarker { marker: value }),
         }
     }
