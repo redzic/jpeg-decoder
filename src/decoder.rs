@@ -370,7 +370,7 @@ impl Decoder {
                         len -= 16;
 
                         let mut code = 0u16;
-                        let mut bits = 0;
+                        let mut bits = 0u32;
 
                         let mut ht = HuffmanTree::new();
 
@@ -383,13 +383,13 @@ impl Decoder {
                                 let symbol = read_u8(&mut self.reader)?;
                                 len -= 1;
 
-                                ht.lookup[to_index(code, bits)] = Some((
-                                    symbol,
+                                ht.lookup[to_index(code, bits)] = (
                                     HuffmanCode {
-                                        bits: bits as u16,
+                                        bits: bits as u8,
                                         code,
                                     },
-                                ));
+                                    symbol,
+                                );
 
                                 code += 1;
                             }
