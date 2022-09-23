@@ -485,6 +485,9 @@ impl Decoder {
         let bh = (self.d.h / 8) as usize;
         let bw = (self.d.w / 8) as usize;
 
+        // TODO refactor this into another function
+        // so we can actually see wtf is taking up the time according
+        // to perf.
         fn ycbcr_to_rgb(y: f64, cb: f64, cr: f64) -> [u8; 3] {
             let r = f64::mul_add(1.402, cr - 128.0, y);
             let g = f64::mul_add(-0.71414, cr - 128.0, f64::mul_add(-0.34414, cb - 128.0, y));
