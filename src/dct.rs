@@ -19,13 +19,19 @@ fn transpose8x8(inm: &[f64; 64], outm: &mut [f64; 64]) {
 }
 
 fn idct_1d(m_in: &[f64; 8], m_out: &mut [f64; 8]) {
+    const SQRT2_O2: f64 = 0.707106781186547524400844362105;
+
     for n in 0..8 {
         let mut sum = 0.;
         for k in 0..8 {
-            let s = if k == 0 { f64::sqrt(0.5) } else { 1. };
-            sum += s * m_in[k] * f64::cos(PI * (n as f64 + 0.5) * k as f64 / 8.0);
+            let s = if k == 0 { SQRT2_O2 } else { 1. };
+            sum = f64::mul_add(
+                s,
+                m_in[k] * f64::cos(PI * (n as f64 + 0.5) * k as f64 / 8.0),
+                sum,
+            )
         }
-        m_out[n] = sum * f64::sqrt(2. / 8.0);
+        m_out[n] = sum * 0.5;
     }
 }
 
@@ -40,8 +46,6 @@ pub fn idct(m_in: &[f64; 64], m_out: &mut [f64; 64]) {
                 cast_mut(&mut m_out[8 * i..][..8]),
             );
         }
-
-        let mut transposed = [0.; 64];
 
         transpose8x8(m_out, &mut transposed);
 
