@@ -264,11 +264,7 @@ impl Decoder {
 
             println!("{}", marker.segment_name());
 
-            // TODO: make this a more strongly-typed enum.
-            // and make a function like segment_name or something,
-            // which returns Option<Marker>
             match marker {
-                // start of sequence
                 JpegMarker::StartOfImage => {}
                 JpegMarker::EndOfImage => {}
                 // Start of scan (actual entropy coded image data)
@@ -294,9 +290,6 @@ impl Decoder {
                             blocks.push(mcu_block);
                         }
                     }
-
-                    // Skip other bytes
-                    self.reader.seek(SeekFrom::End(-2))?;
                 }
                 JpegMarker::ApplicationDefaultHeader => {
                     let len = read_u16(&mut self.reader)?;
