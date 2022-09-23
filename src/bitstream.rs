@@ -85,6 +85,7 @@ impl<'a> BitReader<'a> {
         Some(bit)
     }
 
+    #[inline(never)]
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
         assert!(bits <= 16);
 

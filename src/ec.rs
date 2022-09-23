@@ -15,15 +15,15 @@ pub fn to_index(code: u16, bits: u32) -> usize {
     // of false positive and overhead of computing to_index
 
     // for example:
-    // let mask = u16::MAX >> bits;
+    let mask = u16::MAX >> bits;
 
-    // (code.rotate_right(bits) | mask) as usize
+    (code.rotate_right(bits) | mask) as usize
 
     // however, honestly I think for larger speedups we'd have to rework
     // our approach to huffman decoding anyway. so don't get too caught
     // up in this.
 
-    code.rotate_right(bits) as usize
+    // code.rotate_right(bits) as usize
 }
 
 impl HuffmanTree {
@@ -33,6 +33,7 @@ impl HuffmanTree {
         }
     }
 
+    #[inline(never)]
     pub fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
         let mut code: HuffmanCode = Default::default();
         loop {

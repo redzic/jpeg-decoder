@@ -75,6 +75,7 @@ const ZIGZAG_DECODE_ORDER: [usize; 64] = [
    35, 36, 48, 49, 57, 58, 62, 63,
 ];
 
+#[inline(never)]
 pub fn descan_zigzag(coeffs: &[i16; 64]) -> [i16; 64] {
     let mut new = [0; 64];
 
@@ -115,6 +116,14 @@ fn decode_mcu_block(
     [y, cr, cb]
 }
 
+// Call this function BEFORE doing zigzag descan
+#[inline(never)]
+fn dequantize(coeffs: &mut [i16; 64], quant_matrix: &[u8; 64]) {
+    for i in 0..64 {
+        coeffs[i] *= quant_matrix[i] as i16;
+    }
+}
+
 fn decode_matrix(
     huff_trees: &[HuffmanTree; 2],
     quant_matrix: &[u8; 64],
@@ -138,6 +147,8 @@ fn decode_matrix(
     mcu_block[0] = dc_coeff;
 
     let mut idx = 1;
+
+    // What besides decoding bits takes up so much time in this function?
 
     loop {
         let symbol = ac_huff_tree.read_code(bitreader).unwrap();
@@ -167,13 +178,10 @@ fn decode_matrix(
         }
     }
 
-    // undo zigzag scan order
-    let mut mcu_coeffs = descan_zigzag(&mcu_block);
+    dequantize(&mut mcu_block, quant_matrix);
 
-    // dequantize
-    for i in 0..64 {
-        mcu_coeffs[i] *= quant_matrix[ZIGZAG_DECODE_ORDER[i]] as i16;
-    }
+    // undo zigzag scan order
+    let mcu_coeffs = descan_zigzag(&mcu_block);
 
     mcu_coeffs
 }
