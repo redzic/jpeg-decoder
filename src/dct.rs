@@ -95,7 +95,15 @@ fn idct_1d(m_in: &[f64; 8], m_out: &mut [f64; 8]) {
         let mut sum = 0.;
         for k in 0..8 {
             let s = if k == 0 { SQRT2_O2 } else { 1. };
-            sum = f64::mul_add(s, m_in[k] * cos_table(n, k), sum)
+            // TODO: do not always use mul_add,
+            // since this generates calls to an fma *function* if fma
+            // as an instruction is not available for the target.
+
+            // this is going to slow down the code a lot in some cases,
+            // since the codegen on the default x86 target is way worse.
+
+            // sum = f64::mul_add(s, m_in[k] * cos_table(n, k), sum)
+            sum += s * m_in[k] * cos_table(n, k);
         }
         m_out[n] = sum * 0.5;
     }
@@ -121,5 +129,8 @@ pub fn idct(m_in: &[f64; 64], m_out: &mut [f64; 64]) {
                 cast_mut(&mut m_out[8 * i..][..8]),
             );
         }
+
+        // TODO just curious if doing the transpose here
+        // also works (and removing the first transpose)
     }
 }

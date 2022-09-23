@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
@@ -6,7 +5,7 @@ use std::mem::size_of;
 
 use crate::bitstream::{read_u16, read_u8, BitReader};
 use crate::dct::idct;
-use crate::ec::{sign_code, HuffmanCode, HuffmanTree};
+use crate::ec::{sign_code, to_index, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
 const JPEG_START_OF_IMAGE: u16 = 0xffd8;
@@ -365,9 +364,7 @@ impl Decoder {
                         let mut code = 0u16;
                         let mut bits = 0;
 
-                        let mut ht = HuffmanTree {
-                            lookup: HashMap::new(),
-                        };
+                        let mut ht = HuffmanTree::new();
 
                         for tdepth in buf {
                             code <<= 1;
@@ -378,7 +375,13 @@ impl Decoder {
                                 let symbol = read_u8(&mut self.reader)?;
                                 len -= 1;
 
-                                ht.lookup.insert(HuffmanCode { code, bits }, symbol);
+                                ht.lookup[to_index(code, bits)] = Some((
+                                    symbol,
+                                    HuffmanCode {
+                                        bits: bits as u16,
+                                        code,
+                                    },
+                                ));
 
                                 code += 1;
                             }
