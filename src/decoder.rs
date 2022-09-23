@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::mem::size_of;
 
 use crate::bitstream::{read_u16, read_u8, BitReader};
@@ -13,7 +13,7 @@ use crate::error::DecodeError;
 enum JpegMarker {
     StartOfImage = 0xffd8,
     ApplicationDefaultHeader = 0xffe0,
-    QuantizationTable = 0xffdb,
+    DefineQuantizationTable = 0xffdb,
     StartOfFrame = 0xffc0,
     DefineHuffmanTable = 0xffc4,
     StartOfScan = 0xffda,
@@ -28,7 +28,7 @@ impl JpegMarker {
         match self {
             JpegMarker::StartOfImage => "Start of Image",
             JpegMarker::ApplicationDefaultHeader => "Application Default Header",
-            JpegMarker::QuantizationTable => "Define Quantization Table",
+            JpegMarker::DefineQuantizationTable => "Define Quantization Table",
             JpegMarker::StartOfFrame => "Start of Frame",
             JpegMarker::DefineHuffmanTable => "Define Huffman Table",
             JpegMarker::StartOfScan => "Start of Scan",
@@ -59,7 +59,7 @@ impl TryFrom<u16> for JpegMarker {
         match value {
             0xffd8 => Ok(JpegMarker::StartOfImage),
             0xffe0 => Ok(JpegMarker::ApplicationDefaultHeader),
-            0xffdb => Ok(JpegMarker::QuantizationTable),
+            0xffdb => Ok(JpegMarker::DefineQuantizationTable),
             0xffc0 => Ok(JpegMarker::StartOfFrame),
             0xffc4 => Ok(JpegMarker::DefineHuffmanTable),
             0xffda => Ok(JpegMarker::StartOfScan),
@@ -115,7 +115,7 @@ const ZIGZAG_DECODE_ORDER: [usize; 64] = [
 ];
 
 #[inline(never)]
-pub fn descan_zigzag(coeffs: &[i16; 64]) -> [i16; 64] {
+pub fn zigzag_descan(coeffs: &[i16; 64]) -> [i16; 64] {
     let mut new = [0; 64];
 
     for i in 0..64 {
@@ -220,7 +220,7 @@ fn decode_matrix(
     dequantize(&mut mcu_block, quant_matrix);
 
     // undo zigzag scan order
-    let mcu_coeffs = descan_zigzag(&mcu_block);
+    let mcu_coeffs = zigzag_descan(&mcu_block);
 
     mcu_coeffs
 }
@@ -328,7 +328,7 @@ impl Decoder {
                     println!("Density:      {dx}x{dy}");
                     println!("Thumbnail:    {tx}x{ty}\n");
                 }
-                JpegMarker::QuantizationTable => {
+                JpegMarker::DefineQuantizationTable => {
                     // let len = read_u16(&mut self.reader)? as usize - 3;
                     let mut len = read_u16(&mut self.reader)? as usize - 2;
                     // one DQT can actually define multiple quant tables

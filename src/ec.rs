@@ -3,7 +3,7 @@ use crate::bitstream::BitReader;
 #[derive(Eq, PartialEq, Default, Copy, Clone)]
 pub(crate) struct HuffmanCode {
     pub code: u16,
-    // 0xff if invalid
+    // 0 if invalid
     pub bits: u8,
 }
 
@@ -18,13 +18,7 @@ pub fn to_index(code: u16, bits: u32) -> usize {
 impl HuffmanTree {
     pub fn new() -> Self {
         Self {
-            lookup: [(
-                HuffmanCode {
-                    code: 0,
-                    bits: 0xff,
-                },
-                0,
-            ); 65_536],
+            lookup: [(HuffmanCode { code: 0, bits: 0 }, 0); 65_536],
         }
     }
 
@@ -44,11 +38,12 @@ impl HuffmanTree {
 
             let (vcode, symbol) = self.lookup[index];
 
-            if vcode.bits != 0xff && vcode == code {
+            debug_assert!(code.bits != 0);
+            if vcode == code {
                 return Some(symbol);
             }
         }
-        return None;
+        None
     }
 }
 
