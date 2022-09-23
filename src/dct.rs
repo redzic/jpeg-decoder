@@ -1,5 +1,4 @@
 use std::f64::consts::PI;
-use std::mem::transmute;
 
 #[inline(always)]
 unsafe fn cast<const N: usize, T>(x: &[T]) -> &[T; N] {
@@ -19,43 +18,38 @@ fn transpose8x8(inm: &[f64; 64], outm: &mut [f64; 64]) {
     }
 }
 
-pub fn idct(inm: &[f64; 64], outm: &mut [f64; 64]) {
-    fn alpha(x: usize) -> f64 {
-        if x == 0 {
-            1.0 / f64::sqrt(2.0)
-        } else {
-            1.0
+fn idct_1d(m_in: &[f64; 8], m_out: &mut [f64; 8]) {
+    for n in 0..8 {
+        let mut sum = 0.;
+        for k in 0..8 {
+            let s = if k == 0 { f64::sqrt(0.5) } else { 1. };
+            sum += s * m_in[k] * f64::cos(PI * (n as f64 + 0.5) * k as f64 / 8.0);
         }
+        m_out[n] = sum * f64::sqrt(2. / 8.0);
     }
+}
 
-    fn get_px((x, y): (usize, usize), coeffs: &[[f64; 8]; 8]) -> f64 {
-        let mut sum = 0.0;
+pub fn idct(m_in: &[f64; 64], m_out: &mut [f64; 64]) {
+    unsafe {
+        let mut transposed = [0.; 64];
+        transpose8x8(m_in, &mut transposed);
 
-        for u in 0..8 {
-            for v in 0..8 {
-                let uf = u as f64;
-                let vf = v as f64;
-                sum += alpha(u)
-                    * alpha(v)
-                    // coords are u, v
-                    // u is the x coordinate
-                    // v is the y coordinate
-                    // so we have to index with v first, to select the y coordinate (row)
-                    // then index with u to get the x coordinate
-                    * coeffs[v][u]
-                    * f64::cos(((2 * x + 1) as f64 * uf * PI) / 16.0)
-                    * f64::cos(((2 * y + 1) as f64 * vf * PI) / 16.0);
-            }
+        for i in 0..8 {
+            idct_1d(
+                cast(&transposed[8 * i..][..8]),
+                cast_mut(&mut m_out[8 * i..][..8]),
+            );
         }
 
-        0.25 * sum
-    }
+        let mut transposed = [0.; 64];
 
-    for y in 0..8 {
-        for x in 0..8 {
-            unsafe {
-                outm[y * 8 + x] = get_px((x, y), transmute(inm));
-            }
+        transpose8x8(m_out, &mut transposed);
+
+        for i in 0..8 {
+            idct_1d(
+                cast(&transposed[8 * i..][..8]),
+                cast_mut(&mut m_out[8 * i..][..8]),
+            );
         }
     }
 }

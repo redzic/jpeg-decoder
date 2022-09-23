@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::mem::size_of;
 
 use crate::bitstream::{read_u16, read_u8, BitReader};
-use crate::dct::idct;
+use crate::dct::{idct, idct2};
 use crate::ec::{sign_code, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
@@ -510,7 +510,7 @@ impl Decoder {
                 }
 
                 for p in 0..3 {
-                    idct(&coeffs[p], &mut out[p]);
+                    idct2(&coeffs[p], &mut out[p]);
                 }
 
                 for y2 in 0..8 {
