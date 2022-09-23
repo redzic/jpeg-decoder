@@ -13,6 +13,7 @@ for x in x:
     n = x[0][0]
     k = x[0][1]
     # print(n, k, y)
-    lut[n][k] = N(y, 30)
+    print(f"({n},{k}) => {N(y,30)},")
+    # lut[n][k] = N(y, 30)
 
-print(lut)
+# print(lut)
