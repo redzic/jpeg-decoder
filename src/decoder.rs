@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::mem::size_of;
@@ -8,28 +8,67 @@ use crate::dct::idct;
 use crate::ec::{sign_code, to_index, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
-const JPEG_START_OF_IMAGE: u16 = 0xffd8;
-const JPEG_APPLICATION_DEFAULT_HEADER: u16 = 0xffe0;
-const JPEG_QUANTIZATION_TABLE: u16 = 0xffdb;
-const JPEG_START_OF_FRAME: u16 = 0xffc0;
-const JPEG_DEFINE_HUFFMAN_TABLE: u16 = 0xffc4;
-const JPEG_START_OF_SCAN: u16 = 0xffda;
-const JPEG_END_OF_IMAGE: u16 = 0xffd9;
-const JPEG_PICT_INFO: u16 = 0xffec;
-const JPEG_ADOBE: u16 = 0xffee;
+#[repr(u16)]
+#[derive(Copy, Clone)]
+enum JpegMarker {
+    StartOfImage = 0xffd8,
+    ApplicationDefaultHeader = 0xffe0,
+    QuantizationTable = 0xffdb,
+    StartOfFrame = 0xffc0,
+    DefineHuffmanTable = 0xffc4,
+    StartOfScan = 0xffda,
+    EndOfImage = 0xffd9,
+    PictInfo = 0xffec,
+    AdobeApp14 = 0xffee,
+    Comment = 0xfffe,
+}
 
-fn get_jpeg_segment_name(marker: u16) -> &'static str {
-    match marker {
-        JPEG_START_OF_IMAGE => "Start of Image",
-        JPEG_APPLICATION_DEFAULT_HEADER => "Application Default Header",
-        JPEG_QUANTIZATION_TABLE => "Define Quantization Table",
-        JPEG_START_OF_FRAME => "Start of Frame",
-        JPEG_DEFINE_HUFFMAN_TABLE => "Define Huffman Table",
-        JPEG_START_OF_SCAN => "Start of Scan",
-        JPEG_END_OF_IMAGE => "End of Image",
-        JPEG_PICT_INFO => "Picture Info",
-        JPEG_ADOBE => "Adobe APP14",
-        _ => panic!("invalid jpeg marker, found 0x{:x}", marker),
+impl JpegMarker {
+    fn segment_name(self) -> &'static str {
+        match self {
+            JpegMarker::StartOfImage => "Start of Image",
+            JpegMarker::ApplicationDefaultHeader => "Application Default Header",
+            JpegMarker::QuantizationTable => "Define Quantization Table",
+            JpegMarker::StartOfFrame => "Start of Frame",
+            JpegMarker::DefineHuffmanTable => "Define Huffman Table",
+            JpegMarker::StartOfScan => "Start of Scan",
+            JpegMarker::EndOfImage => "End of Image",
+            JpegMarker::PictInfo => "Picture Info",
+            JpegMarker::AdobeApp14 => "Adobe APP14",
+            JpegMarker::Comment => "Comment",
+        }
+    }
+}
+
+struct InvalidJpegMarker {
+    marker: u16,
+}
+
+impl Debug for InvalidJpegMarker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid marker, found 0x{:x}", self.marker)
+    }
+}
+
+impl TryFrom<u16> for JpegMarker {
+    type Error = InvalidJpegMarker;
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        // TODO: optimization idea, just check if first byte is
+        // 0xff and then do lookup table on other byte
+        match value {
+            0xffd8 => Ok(JpegMarker::StartOfImage),
+            0xffe0 => Ok(JpegMarker::ApplicationDefaultHeader),
+            0xffdb => Ok(JpegMarker::QuantizationTable),
+            0xffc0 => Ok(JpegMarker::StartOfFrame),
+            0xffc4 => Ok(JpegMarker::DefineHuffmanTable),
+            0xffda => Ok(JpegMarker::StartOfScan),
+            0xffd9 => Ok(JpegMarker::EndOfImage),
+            0xffec => Ok(JpegMarker::PictInfo),
+            0xffee => Ok(JpegMarker::AdobeApp14),
+            0xfffe => Ok(JpegMarker::Comment),
+            _ => Err(InvalidJpegMarker { marker: value }),
+        }
     }
 }
 
@@ -221,17 +260,19 @@ impl Decoder {
                 break;
             };
 
-            println!("{}", get_jpeg_segment_name(marker));
+            let marker = JpegMarker::try_from(marker).unwrap();
+
+            println!("{}", marker.segment_name());
 
             // TODO: make this a more strongly-typed enum.
             // and make a function like segment_name or something,
             // which returns Option<Marker>
             match marker {
                 // start of sequence
-                JPEG_START_OF_IMAGE => {}
-                JPEG_END_OF_IMAGE => {}
+                JpegMarker::StartOfImage => {}
+                JpegMarker::EndOfImage => {}
                 // Start of scan (actual entropy coded image data)
-                JPEG_START_OF_SCAN => {
+                JpegMarker::StartOfScan => {
                     // What the hell is this length for?
                     let len = read_u16(&mut self.reader)?;
 
@@ -257,7 +298,7 @@ impl Decoder {
                     // Skip other bytes
                     self.reader.seek(SeekFrom::End(-2))?;
                 }
-                JPEG_APPLICATION_DEFAULT_HEADER => {
+                JpegMarker::ApplicationDefaultHeader => {
                     let len = read_u16(&mut self.reader)?;
 
                     let mut null_str = Vec::new();
@@ -294,7 +335,7 @@ impl Decoder {
                     println!("Density:      {dx}x{dy}");
                     println!("Thumbnail:    {tx}x{ty}\n");
                 }
-                JPEG_QUANTIZATION_TABLE => {
+                JpegMarker::QuantizationTable => {
                     // let len = read_u16(&mut self.reader)? as usize - 3;
                     let mut len = read_u16(&mut self.reader)? as usize - 2;
                     // one DQT can actually define multiple quant tables
@@ -334,7 +375,7 @@ impl Decoder {
                         }
                     }
                 }
-                JPEG_DEFINE_HUFFMAN_TABLE => {
+                JpegMarker::DefineHuffmanTable => {
                     // Up to 4 huffman tables are allowed in JPEG
 
                     // Not actually needed, but we do have to advance forward 2 bytes.
@@ -408,7 +449,7 @@ impl Decoder {
                     // sum of symbols read, and complies with the length
                 }
                 // Other currently unsupported marker
-                JPEG_START_OF_FRAME => {
+                JpegMarker::StartOfFrame => {
                     let _len = read_u16(&mut self.reader)?;
 
                     // bits per sample
