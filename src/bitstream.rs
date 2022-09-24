@@ -54,11 +54,13 @@ impl<'a> BitReader<'a> {
     pub fn get_bit(&mut self) -> Option<bool> {
         // refill buffer
         if self.bitlen == 0 {
-            let new_byte = self.byte_refill()?;
-
-            self.bitbuf |= (new_byte as u64).rotate_right(8);
-
-            self.bitlen = 8;
+            while let Some(byte) = self.byte_refill() {
+                self.bitlen += 8;
+                self.bitbuf |= (byte as u64) << (64 - self.bitlen);
+                if self.bitlen == 64 - 16 {
+                    break;
+                }
+            }
         }
 
         self.bitlen -= 1;
