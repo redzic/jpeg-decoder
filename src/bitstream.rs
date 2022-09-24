@@ -20,18 +20,17 @@ pub fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
 
 pub(crate) struct BitReader<'a> {
     reader: &'a mut BufReader<File>,
-
-    cached_byte: Option<u8>,
-
-    bit_offset: u32,
+    // cached bits
+    bitbuf: u64,
+    bits_left: u32,
 }
 
 impl<'a> BitReader<'a> {
     pub fn new(reader: &'a mut BufReader<File>) -> Self {
         Self {
             reader,
-            bit_offset: 0,
-            cached_byte: None,
+            bitbuf: 0,
+            bits_left: 0,
         }
     }
 
@@ -40,48 +39,27 @@ impl<'a> BitReader<'a> {
     pub fn get_bit(&mut self) -> Option<bool> {
         // skip over 0x00 in 0xff00 found in bitstream
 
-        let byte = if let Some(byte) = self.cached_byte {
-            byte
-        } else {
-            // TODO, if possible, do this branch only once instead of
-            // every time get_bit() is called.
-            // although we are gonna have to do the "refill" stuff
-            // before doing any other optimizations, I suppose.
-            let byte = read_u8(self.reader).ok()?;
+        // refill buffer
+        if self.bits_left == 0 {
+            let new_byte = read_u8(self.reader).ok()?;
 
-            self.cached_byte = Some(byte);
-
-            byte
-        };
-
-        let shift = 7 - self.bit_offset;
-
-        // TODO later optimize dynamic shift into shift by 1
-        let bit = (byte >> shift) & 1 != 0;
-
-        self.bit_offset = (self.bit_offset + 1) % 8;
-
-        if self.bit_offset == 0 {
-            // reached end of byte, read next byte
-            let cached_byte = read_u8(self.reader).ok()?;
-
-            if cached_byte == 0xff {
+            if new_byte == 0xff {
                 let next_byte = read_u8(self.reader).ok()?;
-                // we hit 0xffd9,
-                // apparently
+                // we hit 0xffd9, apparently
 
-                // TODO investigate if there's an edge case
-                // where last couple of bits are being skipped
-                // due to this
                 if next_byte != 0x00 {
-                    // println!("Hit this case, {next_byte:X}");
                     return None;
                 }
             }
 
-            self.cached_byte = Some(cached_byte);
+            self.bitbuf |= (new_byte as u64) << (64 - 8);
+
+            self.bits_left += 8;
         }
 
+        self.bits_left -= 1;
+        let bit = self.bitbuf >> 63 != 0;
+        self.bitbuf <<= 1;
         Some(bit)
     }
 
@@ -100,3 +78,5 @@ impl<'a> BitReader<'a> {
         Some(code)
     }
 }
+
+// TODO write tests for get_bit etc

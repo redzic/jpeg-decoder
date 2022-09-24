@@ -38,7 +38,6 @@ impl HuffmanTree {
 
             let (vcode, symbol) = self.lookup[index];
 
-            debug_assert!(hc.bits != 0);
             if vcode == hc {
                 return Some(symbol);
             }

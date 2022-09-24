@@ -59,19 +59,25 @@ impl TryFrom<u16> for JpegMarker {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         // TODO: optimization idea, just check if first byte is
         // 0xff and then do lookup table on other byte
-        match value {
-            0xffd8 => Ok(JpegMarker::StartOfImage),
-            0xffe0 => Ok(JpegMarker::ApplicationDefaultHeader),
-            0xffdb => Ok(JpegMarker::DefineQuantizationTable),
-            0xffc0 => Ok(JpegMarker::StartOfFrame),
-            0xffc4 => Ok(JpegMarker::DefineHuffmanTable),
-            0xffda => Ok(JpegMarker::StartOfScan),
-            0xffd9 => Ok(JpegMarker::EndOfImage),
-            0xffec => Ok(JpegMarker::PictInfo),
-            0xffee => Ok(JpegMarker::AdobeApp14),
-            0xfffe => Ok(JpegMarker::Comment),
-            0xffe2 => Ok(JpegMarker::AppSeg2),
-            0xffe1 => Ok(JpegMarker::AppSeg1),
+        let [low, high] = value.to_le_bytes();
+
+        if high != 0xff {
+            return Err(InvalidJpegMarker { marker: value });
+        }
+
+        match low {
+            0xd8 => Ok(JpegMarker::StartOfImage),
+            0xe0 => Ok(JpegMarker::ApplicationDefaultHeader),
+            0xdb => Ok(JpegMarker::DefineQuantizationTable),
+            0xc0 => Ok(JpegMarker::StartOfFrame),
+            0xc4 => Ok(JpegMarker::DefineHuffmanTable),
+            0xda => Ok(JpegMarker::StartOfScan),
+            0xd9 => Ok(JpegMarker::EndOfImage),
+            0xec => Ok(JpegMarker::PictInfo),
+            0xee => Ok(JpegMarker::AdobeApp14),
+            0xfe => Ok(JpegMarker::Comment),
+            0xe2 => Ok(JpegMarker::AppSeg2),
+            0xe1 => Ok(JpegMarker::AppSeg1),
             _ => Err(InvalidJpegMarker { marker: value }),
         }
     }
