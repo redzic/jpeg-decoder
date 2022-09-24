@@ -59,7 +59,7 @@ impl TryFrom<u16> for JpegMarker {
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         // TODO: optimization idea, just check if first byte is
         // 0xff and then do lookup table on other byte
-        let [low, high] = value.to_le_bytes();
+        let [high, low] = value.to_be_bytes();
 
         if high != 0xff {
             return Err(InvalidJpegMarker { marker: value });
