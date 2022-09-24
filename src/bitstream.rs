@@ -56,7 +56,7 @@ impl<'a> BitReader<'a> {
         if self.bitlen == 0 {
             let new_byte = self.byte_refill()?;
 
-            self.bitbuf |= (new_byte as u64) << (64 - 8);
+            self.bitbuf |= (new_byte as u64).rotate_right(8);
 
             self.bitlen = 8;
         }
