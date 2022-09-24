@@ -54,9 +54,12 @@ impl<'a> BitReader<'a> {
     pub fn get_bit(&mut self) -> Option<bool> {
         // refill buffer
         if self.bitlen == 0 {
+            // TODO is there a subtle bug here?
+            // like we should refill at least once and return
+            // an error if the first refill failed
             while let Some(byte) = self.byte_refill() {
+                self.bitbuf |= (byte as u64).rotate_right(u8::BITS + self.bitlen);
                 self.bitlen += 8;
-                self.bitbuf |= (byte as u64) << (64 - self.bitlen);
                 if self.bitlen == 64 - 16 {
                     break;
                 }
@@ -73,6 +76,7 @@ impl<'a> BitReader<'a> {
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
         assert!(bits <= 16);
 
+        // TODO maybe refill to max size here as well
         while self.bitlen < bits {
             let byte = self.byte_refill()?;
             self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
