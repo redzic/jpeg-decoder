@@ -20,6 +20,7 @@ enum JpegMarker {
     PictInfo,
     AdobeApp14,
     Comment,
+    AppSeg1,
     AppSeg2,
 }
 
@@ -36,6 +37,7 @@ impl JpegMarker {
             JpegMarker::PictInfo => "Picture Info",
             JpegMarker::AdobeApp14 => "Adobe APP14",
             JpegMarker::Comment => "Comment",
+            JpegMarker::AppSeg1 => "EXIF Metadata (Application Segment 1)",
             JpegMarker::AppSeg2 => "ICC color profile, FlashPix",
         }
     }
@@ -69,6 +71,7 @@ impl TryFrom<u16> for JpegMarker {
             0xffee => Ok(JpegMarker::AdobeApp14),
             0xfffe => Ok(JpegMarker::Comment),
             0xffe2 => Ok(JpegMarker::AppSeg2),
+            0xffe1 => Ok(JpegMarker::AppSeg1),
             _ => Err(InvalidJpegMarker { marker: value }),
         }
     }
