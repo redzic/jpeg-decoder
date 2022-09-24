@@ -22,7 +22,7 @@ pub(crate) struct BitReader<'a> {
     reader: &'a mut BufReader<File>,
     // cached bits
     bitbuf: u64,
-    bits_left: u32,
+    bitlen: u32,
 }
 
 impl<'a> BitReader<'a> {
@@ -30,34 +30,38 @@ impl<'a> BitReader<'a> {
         Self {
             reader,
             bitbuf: 0,
-            bits_left: 0,
+            bitlen: 0,
         }
+    }
+
+    fn byte_refill(&mut self) -> Option<u8> {
+        // skip over 0x00 in 0xff00 found in bitstream
+        let new_byte = read_u8(self.reader).ok()?;
+
+        if new_byte == 0xff {
+            let next_byte = read_u8(self.reader).ok()?;
+
+            if next_byte != 0x00 {
+                return None;
+            }
+        }
+
+        Some(new_byte)
     }
 
     // Only use for reading start of scan data
     // Not a general purpose get_bit function
     pub fn get_bit(&mut self) -> Option<bool> {
-        // skip over 0x00 in 0xff00 found in bitstream
-
         // refill buffer
-        if self.bits_left == 0 {
-            let new_byte = read_u8(self.reader).ok()?;
-
-            if new_byte == 0xff {
-                let next_byte = read_u8(self.reader).ok()?;
-                // we hit 0xffd9, apparently
-
-                if next_byte != 0x00 {
-                    return None;
-                }
-            }
+        if self.bitlen == 0 {
+            let new_byte = self.byte_refill()?;
 
             self.bitbuf |= (new_byte as u64) << (64 - 8);
 
-            self.bits_left += 8;
+            self.bitlen = 8;
         }
 
-        self.bits_left -= 1;
+        self.bitlen -= 1;
         let bit = self.bitbuf >> 63 != 0;
         self.bitbuf <<= 1;
         Some(bit)
@@ -67,16 +71,15 @@ impl<'a> BitReader<'a> {
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
         assert!(bits <= 16);
 
-        let mut code = 0;
-
-        for _ in 0..bits {
-            let bit = self.get_bit()? as u16;
-            code <<= 1;
-            code |= bit;
+        while self.bitlen < bits {
+            let byte = self.byte_refill()?;
+            self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
+            self.bitlen += 8;
         }
 
-        Some(code)
+        let code = (self.bitbuf >> (64 - bits)) as u16;
+        self.bitbuf <<= bits;
+        self.bitlen -= bits;
+        return Some(code);
     }
 }
-
-// TODO write tests for get_bit etc
