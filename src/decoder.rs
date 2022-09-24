@@ -8,7 +8,6 @@ use crate::dct::idct;
 use crate::ec::{sign_code, to_index, HuffmanCode, HuffmanTree};
 use crate::error::DecodeError;
 
-// TODO possible don't use this representation of the enum
 #[derive(Copy, Clone)]
 enum JpegMarker {
     StartOfImage,
@@ -162,7 +161,7 @@ fn decode_mcu_block(
 #[inline(never)]
 fn dequantize(coeffs: &mut [i16; 64], quant_matrix: &[u8; 64]) {
     for i in 0..64 {
-        coeffs[i] *= quant_matrix[i] as i16;
+        coeffs[i] *= i16::from(quant_matrix[i]);
     }
 }
 
@@ -181,7 +180,7 @@ fn decode_matrix(
     // get N bits
     let dc_val = bitreader.get_n_bits(dc_bits as u32).unwrap();
 
-    let dc_coeff = sign_code(dc_bits as u32, dc_val) + *dc_pred;
+    let dc_coeff = *dc_pred + sign_code(dc_bits as u32, dc_val);
     *dc_pred = dc_coeff;
 
     // before de-zigzag
@@ -332,7 +331,6 @@ impl Decoder {
                     println!("Thumbnail:    {tx}x{ty}\n");
                 }
                 JpegMarker::DefineQuantizationTable => {
-                    // let len = read_u16(&mut self.reader)? as usize - 3;
                     let mut len = read_u16(&mut self.reader)? as usize - 2;
                     // one DQT can actually define multiple quant tables
                     // so porsche.jpg doesn't decode because it defines 2 quant
