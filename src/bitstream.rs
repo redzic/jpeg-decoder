@@ -1,6 +1,6 @@
 use std::fs::File;
-use std::io;
-use std::io::{BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read};
+use std::mem::transmute;
 
 /// Reads unsigned short in big-endian format
 pub fn read_u16(reader: &mut BufReader<File>) -> io::Result<u16> {
@@ -18,35 +18,80 @@ pub fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
     Ok(buf[0])
 }
 
-pub(crate) struct BitReader<'a> {
+pub struct InnerBuf<'a> {
+    buf: Vec<u8>,
     reader: &'a mut BufReader<File>,
+}
+
+impl<'a> InnerBuf<'a> {
+    fn new(reader: &'a mut BufReader<File>) -> Self {
+        Self {
+            buf: Vec::new(),
+            reader,
+        }
+    }
+
+    // SAFETY: caller should not access the contents of `slice` if
+    // InnerBuf has been dropped.
+    unsafe fn refill(&mut self, slice: &mut &[u8]) {
+        self.buf.clear();
+        let n = self.reader.read_until(0xff, &mut self.buf).unwrap();
+
+        if n == 0 {
+            // no data left
+            *slice = &[];
+        } else {
+            let next_byte = read_u8(self.reader).unwrap();
+
+            if next_byte != 0x00 {
+                *slice = &[];
+                return;
+            }
+
+            // TODO figure out safe alternative to this
+            *slice = transmute(self.buf.as_slice());
+        }
+    }
+}
+
+pub(crate) struct BitReader<'a> {
+    stream: &'a [u8],
+
+    buf: InnerBuf<'a>,
+
     // cached bits
     bitbuf: u64,
     bitlen: u32,
 }
 
 impl<'a> BitReader<'a> {
-    pub fn new(reader: &'a mut BufReader<File>) -> Self {
+    pub fn new(x: &'a mut BufReader<File>) -> Self {
         Self {
-            reader,
+            stream: &[],
             bitbuf: 0,
             bitlen: 0,
+            buf: InnerBuf::new(x),
         }
     }
 
-    fn byte_refill(&mut self) -> Option<u8> {
-        // skip over 0x00 in 0xff00 found in bitstream
-        let new_byte = read_u8(self.reader).ok()?;
+    fn read_byte(&mut self) -> Option<u8> {
+        // refill buffer
+        if self.stream.is_empty() {
+            unsafe {
+                self.buf.refill(&mut self.stream);
+            }
 
-        if new_byte == 0xff {
-            let next_byte = read_u8(self.reader).ok()?;
-
-            if next_byte != 0x00 {
+            // No more data left
+            if self.stream.is_empty() {
                 return None;
             }
         }
 
-        Some(new_byte)
+        let byte = self.stream[0];
+
+        self.stream = &self.stream[1..];
+
+        Some(byte)
     }
 
     // Only use for reading start of scan data
@@ -58,8 +103,8 @@ impl<'a> BitReader<'a> {
             // TODO is there a subtle bug here?
             // like we should refill at least once and return
             // an error if the first refill failed
-            while let Some(byte) = self.byte_refill() {
-                self.bitbuf |= (byte as u64).rotate_right(u8::BITS + self.bitlen);
+            while let Some(byte) = self.read_byte() {
+                self.bitbuf |= (byte as u64).rotate_right(8 + self.bitlen);
                 self.bitlen += 8;
                 if self.bitlen == 64 - 16 {
                     break;
@@ -101,7 +146,7 @@ impl<'a> BitReader<'a> {
 
         // TODO maybe refill to max size here as well
         while self.bitlen < bits {
-            let byte = self.byte_refill()?;
+            let byte = self.read_byte()?;
             self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
             self.bitlen += 8;
         }
