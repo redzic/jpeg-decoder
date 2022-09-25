@@ -10,3 +10,4 @@ name = "zen_jpeg"
 path = "src/lib.rs"
 
 [dependencies]
+memchr = "2.5.0"

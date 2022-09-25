@@ -28,10 +28,6 @@ pub struct InnerBuf<'a> {
     stop_returning: bool,
 }
 
-fn memchr(a: &[u8]) -> Option<usize> {
-    a.iter().position(|x| *x == 0xff)
-}
-
 impl<'a> InnerBuf<'a> {
     fn new(reader: &'a mut BufReader<File>) -> Self {
         Self {
@@ -73,7 +69,7 @@ impl<'a> InnerBuf<'a> {
         }
 
         // find next 0xff in current buffer, if any
-        let pos_0xff = memchr(&self.reader.buffer()[self.bpos..]);
+        let pos_0xff = memchr::memchr(0xff, &self.reader.buffer()[self.bpos..]);
 
         // after first 0xff, everything is fucked up
 
