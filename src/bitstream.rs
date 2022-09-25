@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read};
 use std::mem::transmute;
 
+use crate::util::{likely, unlikely};
+
 /// Reads unsigned short in big-endian format
 pub fn read_u16(reader: &mut BufReader<File>) -> io::Result<u16> {
     let mut buf = [0; 2];
@@ -18,38 +20,125 @@ pub fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
     Ok(buf[0])
 }
 
+// TODO write tests for this
 pub struct InnerBuf<'a> {
-    buf: Vec<u8>,
     reader: &'a mut BufReader<File>,
+    bpos: usize,
+
+    stop_returning: bool,
+}
+
+fn memchr(a: &[u8]) -> Option<usize> {
+    a.iter().position(|x| *x == 0xff)
 }
 
 impl<'a> InnerBuf<'a> {
     fn new(reader: &'a mut BufReader<File>) -> Self {
         Self {
-            buf: Vec::new(),
             reader,
+            bpos: 0,
+            // eob_0xff: false,
+            stop_returning: false,
         }
     }
 
     // SAFETY: caller should not access the contents of `slice` if
     // InnerBuf has been dropped.
+
+    // TODO prefer returning slice by value, since we don't want this function
+    // to be inlined, and returning by value (in registers) is more efficient.
+    #[inline(never)]
     unsafe fn refill(&mut self, slice: &mut &[u8]) {
-        self.buf.clear();
-        let n = self.reader.read_until(0xff, &mut self.buf).unwrap();
-
-        if n == 0 {
-            // no data left
+        if unlikely(self.stop_returning) {
             *slice = &[];
-        } else {
-            let next_byte = read_u8(self.reader).unwrap();
+            return;
+        }
 
-            if next_byte != 0x00 {
-                *slice = &[];
-                return;
+        // need to actually refill buffer, not just progress through
+        // current buffer
+        if unlikely(self.bpos >= self.reader.buffer().len()) {
+            // consume the whole buffer
+            self.reader.consume(self.reader.buffer().len());
+            self.bpos = 0;
+
+            match self.reader.fill_buf() {
+                Ok(_new_buf) => {
+                    // continue as normal
+                }
+                _ => {
+                    // shouldn't happen?
+                    unreachable!();
+                }
             }
+        }
 
-            // TODO figure out safe alternative to this
-            *slice = transmute(self.buf.as_slice());
+        // find next 0xff in current buffer, if any
+        let pos_0xff = memchr(&self.reader.buffer()[self.bpos..]);
+
+        // after first 0xff, everything is fucked up
+
+        if let Some(pos) = pos_0xff {
+            // return bytes up to and including the 0xff found, only
+            // if the byte after the 0xff is 0
+            if let Some(&next_byte) = self.reader.buffer().get(self.bpos + pos + 1) {
+                if likely(next_byte == 0x00) {
+                    // all is good, we just have to send bytes not including the 0x00
+
+                    // to include the 0xff we found:
+                    // for example if pos==1, we have to go up to and including index 1.
+
+                    // pos is index of 0xff relative to bpos
+
+                    // pos is relative to self.bpos
+                    *slice = transmute(&self.reader.buffer()[self.bpos..][..=pos]);
+
+                    // we found 0xff00 at index bpos+pos,
+                    // this means we need to skip the 0 afterwards.
+                    // if bpos = 0, pos = 0
+                    // we found 0xff at index 0
+                    // index 1 = 0x00 (which we skip)
+                    // so bpos should be 2 afterwards
+                    self.bpos += pos + 2;
+
+                    // dbg!(&self.reader.buffer()[self.bpos - 5..][..5]);
+                    // dbg!(&self.reader.buffer()[self.bpos..][..5]);
+
+                    return;
+                } else {
+                    // Why does it think this is not 0 though?
+
+                    // send bytes not even including the 0xff, since we are at eof now
+
+                    *slice = transmute(&self.reader.buffer()[self.bpos..][..pos]);
+
+                    // we found 0xffd9 (or something)
+                    // pos indicates position of 0xffd9
+
+                    // dbg!(next_byte);
+                    // dbg!(&self.reader.buffer()[self.bpos - 5..][..5]);
+                    // dbg!(&self.reader.buffer()[self.bpos..][..5]);
+
+                    self.stop_returning = true;
+
+                    return;
+                }
+            } else {
+                // should only happen when 0xff was found at the end of the buffer
+                assert!(pos == self.reader.buffer().len() - 1);
+
+                // handle in next iteration of refill, check first byte
+
+                // TODO handle properly later
+                // probably won't happen in practice
+                unreachable!();
+            }
+        } else {
+            assert!(!self.reader.buffer()[self.bpos..].contains(&0xff));
+
+            // send the entire buffer
+            *slice = transmute(&self.reader.buffer()[self.bpos..]);
+            self.bpos = self.reader.buffer().len();
+            return;
         }
     }
 }
@@ -64,6 +153,13 @@ pub(crate) struct BitReader<'a> {
     bitlen: u32,
 }
 
+impl<'a> Drop for InnerBuf<'a> {
+    fn drop(&mut self) {
+        // consume rest of the buffer
+        self.reader.consume(self.reader.buffer().len());
+    }
+}
+
 impl<'a> BitReader<'a> {
     pub fn new(x: &'a mut BufReader<File>) -> Self {
         Self {
@@ -76,7 +172,7 @@ impl<'a> BitReader<'a> {
 
     fn read_byte(&mut self) -> Option<u8> {
         // refill buffer
-        if self.stream.is_empty() {
+        if unlikely(self.stream.is_empty()) {
             unsafe {
                 self.buf.refill(&mut self.stream);
             }
@@ -104,7 +200,7 @@ impl<'a> BitReader<'a> {
             // like we should refill at least once and return
             // an error if the first refill failed
             while let Some(byte) = self.read_byte() {
-                self.bitbuf |= (byte as u64).rotate_right(8 + self.bitlen);
+                self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
                 self.bitlen += 8;
                 if self.bitlen == 64 - 16 {
                     break;

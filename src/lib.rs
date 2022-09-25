@@ -10,3 +10,4 @@ mod bitstream;
 mod dct;
 mod ec;
 pub mod error;
+mod util;
