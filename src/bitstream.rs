@@ -133,7 +133,7 @@ impl<'a> InnerBuf<'a> {
                 unreachable!();
             }
         } else {
-            assert!(!self.reader.buffer()[self.bpos..].contains(&0xff));
+            // assert!(!self.reader.buffer()[self.bpos..].contains(&0xff));
 
             // send the entire buffer
             *slice = transmute(&self.reader.buffer()[self.bpos..]);
@@ -170,6 +170,7 @@ impl<'a> BitReader<'a> {
         }
     }
 
+    #[inline(always)]
     fn read_byte(&mut self) -> Option<u8> {
         // refill buffer
         if unlikely(self.stream.is_empty()) {
@@ -180,6 +181,14 @@ impl<'a> BitReader<'a> {
             // No more data left
             if self.stream.is_empty() {
                 return None;
+            }
+        }
+
+        // unfortunately the compiler can't see that by this point
+        // self.stream will never be empty
+        if self.stream.is_empty() {
+            unsafe {
+                std::hint::unreachable_unchecked();
             }
         }
 
