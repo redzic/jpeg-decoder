@@ -24,8 +24,6 @@ pub fn read_u8(reader: &mut BufReader<File>) -> io::Result<u8> {
 pub struct InnerBuf<'a> {
     reader: &'a mut BufReader<File>,
     bpos: usize,
-
-    stop_returning: bool,
 }
 
 impl<'a> InnerBuf<'a> {
@@ -34,7 +32,6 @@ impl<'a> InnerBuf<'a> {
             reader,
             bpos: 0,
             // eob_0xff: false,
-            stop_returning: false,
         }
     }
 
@@ -45,11 +42,6 @@ impl<'a> InnerBuf<'a> {
     // to be inlined, and returning by value (in registers) is more efficient.
     #[inline(never)]
     unsafe fn refill(&mut self, slice: &mut &[u8]) {
-        if unlikely(self.stop_returning) {
-            *slice = &[];
-            return;
-        }
-
         // need to actually refill buffer, not just progress through
         // current buffer
         if unlikely(self.bpos >= self.reader.buffer().len()) {
@@ -113,8 +105,6 @@ impl<'a> InnerBuf<'a> {
                     // dbg!(next_byte);
                     // dbg!(&self.reader.buffer()[self.bpos - 5..][..5]);
                     // dbg!(&self.reader.buffer()[self.bpos..][..5]);
-
-                    self.stop_returning = true;
 
                     return;
                 }
