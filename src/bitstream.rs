@@ -185,7 +185,7 @@ impl<'a> BitReader<'a> {
     #[allow(unused)]
     pub fn get_bit(&mut self) -> Option<bool> {
         // refill buffer
-        if self.bitlen == 0 {
+        if unlikely(self.bitlen == 0) {
             // TODO is there a subtle bug here?
             // like we should refill at least once and return
             // an error if the first refill failed
