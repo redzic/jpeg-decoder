@@ -152,7 +152,7 @@ impl<'a> BitReader<'a> {
     }
 
     #[inline(always)]
-    fn read_byte(&mut self) -> Option<u8> {
+    fn getbyte(&mut self) -> Option<u8> {
         // refill buffer
         if unlikely(self.stream.is_empty()) {
             unsafe {
@@ -189,7 +189,7 @@ impl<'a> BitReader<'a> {
             // TODO is there a subtle bug here?
             // like we should refill at least once and return
             // an error if the first refill failed
-            while let Some(byte) = self.read_byte() {
+            while let Some(byte) = self.getbyte() {
                 self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
                 self.bitlen += 8;
                 if self.bitlen == 64 - 16 {
@@ -232,7 +232,7 @@ impl<'a> BitReader<'a> {
 
         // TODO maybe refill to max size here as well
         while self.bitlen < bits {
-            let byte = self.read_byte()?;
+            let byte = self.getbyte()?;
             self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
             self.bitlen += 8;
         }
