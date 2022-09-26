@@ -63,8 +63,6 @@ impl<'a> InnerBuf<'a> {
         // find next 0xff in current buffer, if any
         let pos_0xff = memchr::memchr(0xff, &self.reader.buffer()[self.bpos..]);
 
-        // after first 0xff, everything is fucked up
-
         if let Some(pos) = pos_0xff {
             // return bytes up to and including the 0xff found, only
             // if the byte after the 0xff is 0
@@ -93,8 +91,6 @@ impl<'a> InnerBuf<'a> {
 
                     return;
                 } else {
-                    // Why does it think this is not 0 though?
-
                     // send bytes not even including the 0xff, since we are at eof now
 
                     *slice = transmute(&self.reader.buffer()[self.bpos..][..pos]);
@@ -109,6 +105,7 @@ impl<'a> InnerBuf<'a> {
                     return;
                 }
             } else {
+                // branch is taken at end of buffer
                 // should only happen when 0xff was found at the end of the buffer
                 assert!(pos == self.reader.buffer().len() - 1);
 
@@ -119,8 +116,6 @@ impl<'a> InnerBuf<'a> {
                 unreachable!();
             }
         } else {
-            // assert!(!self.reader.buffer()[self.bpos..].contains(&0xff));
-
             // send the entire buffer
             *slice = transmute(&self.reader.buffer()[self.bpos..]);
             self.bpos = self.reader.buffer().len();
@@ -147,12 +142,12 @@ impl<'a> Drop for InnerBuf<'a> {
 }
 
 impl<'a> BitReader<'a> {
-    pub fn new(x: &'a mut BufReader<File>) -> Self {
+    pub fn new(reader: &'a mut BufReader<File>) -> Self {
         Self {
             stream: &[],
             bitbuf: 0,
             bitlen: 0,
-            buf: InnerBuf::new(x),
+            buf: InnerBuf::new(reader),
         }
     }
 
@@ -165,7 +160,7 @@ impl<'a> BitReader<'a> {
             }
 
             // No more data left
-            if self.stream.is_empty() {
+            if unlikely(self.stream.is_empty()) {
                 return None;
             }
         }
