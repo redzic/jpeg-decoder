@@ -1,10 +1,10 @@
+import random
+
 # basic idea of hashemian 2004 paper
 
 # symbol list, in sorted order
 s = [x + 1 for x in range(18)]
 
-# 10 01 10 00 00 01 10 110 111000
-# 3 2 3 1 1 2 3 4 5
 
 bitcount = []
 
@@ -62,11 +62,34 @@ l0 = 2
 # max code length
 lm = 8
 
+
+def code_interleaved_symbols(symbols, interleave_pattern):
+    bitbuf = 0
+    nbits = 0
+    for (symbol, ibits) in zip(symbols, interleave_pattern):
+        # random bit pattern
+        rand_bits = random.randint(0, (1 << ibits) - 1)
+
+        bits = bitcount[symbol - 1]
+        # shift current buffer
+        bitbuf <<= bits
+        # append code
+        bitbuf |= c[symbol - 1]
+        nbits += bits
+
+        # append random bits
+        bitbuf <<= ibits
+        bitbuf |= rand_bits
+
+        nbits += ibits
+
+    return (bitbuf, nbits)
+
+
 # Get bitstream from symbols
 def code_symbols(symbols):
     bitbuf = 0
     nbits = 0
-    # 3 2 3 1 1 2 3 4 5 18 3 13 18 2 2 7 7 7
     for symbol in symbols:
         bits = bitcount[symbol - 1]
         # shift current buffer
@@ -129,36 +152,33 @@ class BitStream:
 
         self.bits -= nbits
 
-        # assert self.bits >= nbits
-
-        # if not (self.bits >= nbits):
-        # print("(assertion failed)")
-
         return
 
     def PeekBits(self, nbits):
-        # assert self.bits >= nbits
-
         return self.bitstream >> (self.buflen - nbits)
 
     def GetBits(self, nbits):
         bits = self.PeekBits(nbits)
         self.ConsumeBits(nbits)
-
         return bits
 
 
-data = [x for x in range(1, 19)][::-1]
+data = [x for x in range(1, 19)]
 
+# interleave n bits after every symbol
+interleave_pattern = [random.randint(1, 5) for _ in range(18)]
 
-bitstream, bits = code_symbols(data)
+bitstream, bits = code_interleaved_symbols(data, interleave_pattern)
+
+print(bin(bitstream), bits)
 
 bs = BitStream(bits, bitstream)
 
 
 decoded_buffer = []
-for _ in range(len(data)):
+for bits in interleave_pattern:
     decoded_buffer.append(bs.GetCode())
+    bs.ConsumeBits(bits)
 
 print(f" source: {data}")
 print(f"decoded: {decoded_buffer}")
