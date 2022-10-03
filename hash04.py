@@ -111,7 +111,10 @@ class BitStream:
         W = self.PeekBits(lm)
 
         # first index changes when searching for match
-        if W <= cht[0][0]:
+
+        # The paper is incorrect that the comparison should
+        # be less than or equal to.
+        if W < cht[0][0]:
             # get top L_0 bits
             W >>= lm - l0
 
@@ -122,6 +125,7 @@ class BitStream:
             # find first codeword greater than W
             j = None
             for i in range(1, len(cht)):
+                # Maybe this should be greater than or equal to?
                 if cht[i][0] > W:
                     j = i - 1
                     break
@@ -163,24 +167,26 @@ class BitStream:
         return bits
 
 
-data = [x for x in range(1, 19)]
+while True:
+    nsymbols = random.randint(1, 5000)
 
-# interleave n bits after every symbol
-interleave_pattern = [random.randint(1, 5) for _ in range(18)]
+    data = [random.randint(1, 18) for _ in range(nsymbols)]
 
-bitstream, bits = code_interleaved_symbols(data, interleave_pattern)
+    # interleave n bits after every symbol
+    # interleave_pattern = [random.randint(0) for _ in range(nsymbols)]
+    interleave_pattern = [random.randint(0, 8) for _ in range(nsymbols)]
 
-print(bin(bitstream), bits)
+    bitstream, bits = code_interleaved_symbols(data, interleave_pattern)
 
-bs = BitStream(bits, bitstream)
+    # print(bin(bitstream), bits)
 
+    bs = BitStream(bits, bitstream)
 
-decoded_buffer = []
-for bits in interleave_pattern:
-    decoded_buffer.append(bs.GetCode())
-    bs.ConsumeBits(bits)
+    decoded_buffer = []
+    for bits in interleave_pattern:
+        decoded_buffer.append(bs.GetCode())
+        bs.ConsumeBits(bits)
 
-print(f" source: {data}")
-print(f"decoded: {decoded_buffer}")
+    assert data == decoded_buffer
 
-assert data == decoded_buffer
+    print(f"decoded: {decoded_buffer}")
