@@ -37,13 +37,14 @@ impl HuffmanTree {
             }
             let j = j.unwrap_or(self.cht.len() - 1);
 
-            let l = self.cht[j].1;
+            // aug_c = augmented codeword
+            let (aug_c, l, offset) = self.cht[j];
+
             w >>= 16 - l;
 
             bitreader.consume_bits(l as u32);
 
-            let base = self.cht[j].0 >> (16 - self.cht[j].1);
-            let offset = self.cht[j].2;
+            let base = aug_c >> (16 - l);
             Some(self.symbols[w as usize - base as usize + offset as usize])
         }
     }
