@@ -209,7 +209,7 @@ impl<'a> BitReader<'a> {
 
         while self.bitlen < BITS {
             // pad with zeroes if nothing is left
-            let byte = match self.byte_refill() {
+            let byte = match self.getbyte() {
                 Some(x) => x,
                 None => break,
             };
