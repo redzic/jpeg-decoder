@@ -97,7 +97,7 @@ impl<'a> BitReader<'a> {
     }
 
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
-        assert!(bits <= 16);
+        debug_assert!(bits <= 16);
 
         // TODO maybe refill to max size here as well
         while self.bitlen < bits {
