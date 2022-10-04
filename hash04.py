@@ -48,6 +48,10 @@ l0 = bitcount[0]
 # max code length
 lm = 8
 
+# there can only be max 256 symbols
+# so max index is 255
+# which fits in u8
+
 last_len = l0
 for count, (symbol, code, bits) in enumerate(zip(s, c, bitcount)):
     # augmented code

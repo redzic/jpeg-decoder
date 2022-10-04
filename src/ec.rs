@@ -1,49 +1,51 @@
 use crate::bitstream::BitReader;
 
-#[derive(Eq, PartialEq, Default, Copy, Clone)]
-pub(crate) struct HuffmanCode {
-    pub code: u16,
-    // 0 if invalid
-    pub bits: u8,
-}
-
 pub(crate) struct HuffmanTree {
-    pub lookup: [(HuffmanCode, u8); 1 << 16],
-}
-
-pub fn to_index(code: u16, bits: u32) -> usize {
-    code.rotate_right(bits) as usize
+    pub symbols: Box<[u8]>,
+    pub cht: Box<[(u16, u8, u8)]>,
+    // min code length
+    pub l0: u8,
 }
 
 impl HuffmanTree {
     pub fn new() -> Self {
         Self {
-            lookup: [(HuffmanCode { code: 0, bits: 0 }, 0); 1 << 16],
+            cht: Box::new([]),
+            symbols: Box::new([]),
+            l0: 0,
         }
     }
 
     #[inline(never)]
     pub fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
-        let mut hc: HuffmanCode = Default::default();
-        for _ in 0..16 {
-            let bit1 = bitreader.get_bit();
+        let mut w = bitreader.peek_bits(16)?;
 
-            let bit = bit1?;
+        if w < self.cht[0].0 {
+            w >>= 16 - self.l0;
 
-            hc.bits += 1;
-            hc.code <<= 1;
-            hc.code |= bit as u16;
+            bitreader.consume_bits(self.l0 as u32);
 
-            let index = to_index(hc.code, hc.bits as u32);
-
-            let (vcode, symbol) = self.lookup[index];
-
-            if vcode == hc {
-                return Some(symbol);
+            return Some(self.symbols[w as usize]);
+        } else {
+            // TODO rewrite as functional
+            let mut j = None;
+            for i in 1..self.cht.len() {
+                if self.cht[i].0 > w {
+                    j = Some(i - 1);
+                    break;
+                }
             }
-        }
+            let j = j.unwrap_or_else(|| self.cht.len() - 1);
 
-        None
+            let l = self.cht[j].1;
+            w >>= 16 - l;
+
+            bitreader.consume_bits(l as u32);
+
+            let base = self.cht[j].0 >> (16 - self.cht[j].1);
+            let offset = self.cht[j].2;
+            return Some(self.symbols[w as usize - base as usize + offset as usize]);
+        }
     }
 }
 

@@ -5,7 +5,7 @@ use std::mem::size_of;
 
 use crate::bitstream::{read_u16, read_u8, BitReader};
 use crate::dct::idct;
-use crate::ec::{sign_code, to_index, HuffmanCode, HuffmanTree};
+use crate::ec::{sign_code, HuffmanTree};
 use crate::error::DecodeError;
 
 #[derive(Copy, Clone)]
@@ -236,6 +236,28 @@ fn decode_matrix(
     mcu_coeffs
 }
 
+#[allow(unused)]
+pub fn print_huffman_code(is_dc: bool, symbol: u8, code: u16, bits: usize) {
+    if is_dc {
+        println!("{symbol: >3}  :  {:0width$b}", code, width = bits);
+    } else {
+        // bit count is in the low 4 bits of the symbol
+
+        let bit_count = symbol & 0xf;
+
+        // how many preceeding zeros there are before this coefficient
+        let run_length = (symbol & 0xf0) >> 4;
+
+        println!(
+            "({}, {})    \t:  {:0width$b}",
+            bit_count,
+            run_length,
+            code,
+            width = bits
+        );
+    }
+}
+
 impl Decoder {
     pub fn new(file: File) -> Self {
         Decoder {
@@ -414,30 +436,53 @@ impl Decoder {
                         len -= 16;
 
                         let mut code = 0u16;
-                        let mut bits = 0u32;
+                        let mut bits = 0;
 
                         let mut ht = HuffmanTree::new();
+
+                        let n_symbs = buf.iter().copied().map(|x| x as u16).sum::<u16>();
+
+                        assert!(n_symbs > 0 && n_symbs <= 256);
+
+                        let mut symbols = [0; 256];
+                        self.reader.read_exact(&mut symbols[..n_symbs as usize])?;
+                        len -= n_symbs;
+
+                        let mut idx = 0;
+
+                        let mut last_len = buf.iter().position(|depth| *depth > 0).unwrap() + 1;
+
+                        ht.l0 = last_len as u8;
+
+                        let mut cht = Vec::new();
 
                         for tdepth in buf {
                             code <<= 1;
                             bits += 1;
 
-                            // TODO optimize symbol decoding
                             for _ in 0..tdepth {
-                                let symbol = read_u8(&mut self.reader)?;
-                                len -= 1;
+                                // let symbol = symbols[idx];
 
-                                ht.lookup[to_index(code, bits)] = (
-                                    HuffmanCode {
-                                        bits: bits as u8,
-                                        code,
-                                    },
-                                    symbol,
-                                );
+                                // print_huffman_code(is_dc, symbol, code, bits);
 
+                                if bits > last_len {
+                                    cht.push((code << (16 - bits), bits as u8, idx as u8));
+                                    last_len = bits;
+                                }
+
+                                idx += 1;
                                 code += 1;
                             }
                         }
+
+                        // for (x, y, z) in &cht {
+                        //     println!("[0x{:x}, {}, {}]", x, y, z);
+                        // }
+
+                        ht.cht = cht.into_boxed_slice();
+
+                        // TODO find better way to do this
+                        ht.symbols = symbols[..n_symbs as usize].to_vec().into_boxed_slice();
 
                         // so AC is actually stored at index 0,
                         // DC tree at index 1

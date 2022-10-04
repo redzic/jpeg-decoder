@@ -51,6 +51,7 @@ impl<'a> BitReader<'a> {
 
     // Only use for reading start of scan data
     // Not a general purpose get_bit function
+    #[allow(unused)]
     pub fn get_bit(&mut self) -> Option<bool> {
         // refill buffer
         if self.bitlen == 0 {
@@ -72,7 +73,29 @@ impl<'a> BitReader<'a> {
         Some(bit)
     }
 
-    #[inline(never)]
+    pub fn peek_bits(&mut self, bits: u32) -> Option<u16> {
+        assert!(bits <= 16);
+
+        while self.bitlen < bits {
+            // pad with zeroes if nothing is left
+            let byte = match self.byte_refill() {
+                Some(x) => x,
+                None => break,
+            };
+            self.bitbuf |= (byte as u64).rotate_right(8) >> self.bitlen;
+            self.bitlen += 8;
+        }
+
+        let code = (self.bitbuf >> (64 - bits)) as u16;
+
+        Some(code)
+    }
+
+    pub fn consume_bits(&mut self, bits: u32) {
+        self.bitbuf <<= bits;
+        self.bitlen -= bits;
+    }
+
     pub fn get_n_bits(&mut self, bits: u32) -> Option<u16> {
         assert!(bits <= 16);
 
@@ -83,6 +106,7 @@ impl<'a> BitReader<'a> {
             self.bitlen += 8;
         }
 
+        // shift with overflow happens with 0 bits as input
         let code = (self.bitbuf >> (64 - bits)) as u16;
         self.bitbuf <<= bits;
         self.bitlen -= bits;
