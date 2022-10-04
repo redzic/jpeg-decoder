@@ -25,7 +25,7 @@ impl HuffmanTree {
 
             bitreader.consume_bits(self.l0 as u32);
 
-            return Some(self.symbols[w as usize]);
+            Some(self.symbols[w as usize])
         } else {
             // TODO rewrite as functional
             let mut j = None;
@@ -35,7 +35,7 @@ impl HuffmanTree {
                     break;
                 }
             }
-            let j = j.unwrap_or_else(|| self.cht.len() - 1);
+            let j = j.unwrap_or(self.cht.len() - 1);
 
             let l = self.cht[j].1;
             w >>= 16 - l;
@@ -44,7 +44,7 @@ impl HuffmanTree {
 
             let base = self.cht[j].0 >> (16 - self.cht[j].1);
             let offset = self.cht[j].2;
-            return Some(self.symbols[w as usize - base as usize + offset as usize]);
+            Some(self.symbols[w as usize - base as usize + offset as usize])
         }
     }
 }

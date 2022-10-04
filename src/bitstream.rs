@@ -109,6 +109,6 @@ impl<'a> BitReader<'a> {
         let code = self.bitbuf.rotate_left(bits) as u16;
         self.bitbuf <<= bits;
         self.bitlen -= bits;
-        return Some(code);
+        Some(code)
     }
 }

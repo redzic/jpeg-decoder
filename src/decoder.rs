@@ -231,9 +231,7 @@ fn decode_matrix(
     dequantize(&mut mcu_block, quant_matrix);
 
     // undo zigzag scan order
-    let mcu_coeffs = zigzag_descan(&mcu_block);
-
-    mcu_coeffs
+    zigzag_descan(&mcu_block)
 }
 
 #[allow(unused)]
