@@ -125,7 +125,6 @@ const ZIGZAG_DECODE_ORDER: [usize; 64] = [
    35, 36, 48, 49, 57, 58, 62, 63,
 ];
 
-#[inline(never)]
 pub fn zigzag_descan(coeffs: &[i16; 64]) -> [i16; 64] {
     let mut new = [0; 64];
 
@@ -167,7 +166,6 @@ fn decode_mcu_block(
 }
 
 // Call this function BEFORE doing zigzag descan
-#[inline(never)]
 fn dequantize(coeffs: &mut [i16; 64], quant_matrix: &[u8; 64]) {
     for i in 0..64 {
         coeffs[i] *= i16::from(quant_matrix[i]);

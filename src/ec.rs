@@ -16,7 +16,6 @@ impl HuffmanTree {
         }
     }
 
-    #[inline(never)]
     pub fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
         let mut w = bitreader.peek_bits::<16>()?;
 
