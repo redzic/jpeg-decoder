@@ -497,19 +497,21 @@ impl Decoder {
 
                         ht.l0 = last_len as u8;
 
-                        let mut cht = Vec::new();
+                        // let mut cht = Vec::new();
+                        let mut v1 = Vec::new();
+                        let mut v2 = Vec::new();
+                        let mut v3 = Vec::new();
 
                         for tdepth in buf {
                             code <<= 1;
                             bits += 1;
 
                             for _ in 0..tdepth {
-                                // let symbol = symbols[idx];
-
-                                // print_huffman_code(is_dc, symbol, code, bits);
-
                                 if bits > last_len {
-                                    cht.push((code << (16 - bits), bits as u8, idx as u8));
+                                    v1.push(code << (16 - bits));
+                                    v2.push(bits as u8);
+                                    v3.push(idx as u8);
+
                                     last_len = bits;
                                 }
 
@@ -518,11 +520,9 @@ impl Decoder {
                             }
                         }
 
-                        // for (x, y, z) in &cht {
-                        //     println!("[0x{:x}, {}, {}]", x, y, z);
-                        // }
-
-                        ht.cht = cht.into_boxed_slice();
+                        ht.aug = v1.into_boxed_slice();
+                        ht.l = v2.into_boxed_slice();
+                        ht.offset = v3.into_boxed_slice();
 
                         // TODO find better way to do this
                         ht.symbols = symbols[..n_symbs as usize].to_vec().into_boxed_slice();
