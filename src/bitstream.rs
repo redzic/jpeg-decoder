@@ -73,10 +73,10 @@ impl<'a> BitReader<'a> {
         Some(bit)
     }
 
-    pub fn peek_bits(&mut self, bits: u32) -> Option<u16> {
-        assert!(bits <= 16);
+    pub fn peek_bits<const BITS: u32>(&mut self) -> Option<u16> {
+        assert!(BITS <= 16);
 
-        while self.bitlen < bits {
+        while self.bitlen < BITS {
             // pad with zeroes if nothing is left
             let byte = match self.byte_refill() {
                 Some(x) => x,
@@ -86,7 +86,7 @@ impl<'a> BitReader<'a> {
             self.bitlen += 8;
         }
 
-        let code = (self.bitbuf >> (64 - bits)) as u16;
+        let code = (self.bitbuf >> (64 - BITS)) as u16;
 
         Some(code)
     }
