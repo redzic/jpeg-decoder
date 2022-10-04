@@ -1,4 +1,5 @@
 use crate::bitstream::BitReader;
+use crate::util::likely;
 
 pub(crate) struct HuffmanTree {
     pub symbols: Box<[u8]>,
@@ -19,7 +20,7 @@ impl HuffmanTree {
     pub fn read_code(&self, bitreader: &mut BitReader) -> Option<u8> {
         let mut w = bitreader.peek_bits::<16>()?;
 
-        if w < self.cht[0].0 {
+        if likely(w < self.cht[0].0) {
             w >>= 16 - self.l0;
 
             bitreader.consume_bits(self.l0 as u32);
