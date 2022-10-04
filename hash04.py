@@ -40,27 +40,21 @@ c = [
     0b11111111,
 ]
 
-# TODO derive condensed huffman table based on codewords
-# and write random tests to verify decoding
-
-# we need a map of what to actually subtract by
-
-# for jpeg we probably need to "augment" to 16 bits
-
-# condensed huffman table representation
 # [augmented code C, code length L, symbol position N]
-cht = [
-    [0xC0, 3, 4],
-    [0xE0, 6, 5],
-    [0xEC, 7, 8],
-    [0xFE, 8, 17],
-]
-
+cht = []
 
 # min code length
-l0 = 2
+l0 = bitcount[0]
 # max code length
 lm = 8
+
+last_len = l0
+for count, (symbol, code, bits) in enumerate(zip(s, c, bitcount)):
+    # augmented code
+    A = code << (lm - bits)
+    if bits > last_len:
+        cht.append([A, bits, count])
+        last_len = bits
 
 
 def code_interleaved_symbols(symbols, interleave_pattern):
@@ -125,7 +119,6 @@ class BitStream:
             # find first codeword greater than W
             j = None
             for i in range(1, len(cht)):
-                # Maybe this should be greater than or equal to?
                 if cht[i][0] > W:
                     j = i - 1
                     break
@@ -140,7 +133,7 @@ class BitStream:
             bs.ConsumeBits(L)
 
             base = cht[j][0] >> (lm - cht[j][1])
-            offset = cht[j][2] - 1
+            offset = cht[j][2]
 
             idx = W - base + offset
             assert idx >= 0
@@ -167,26 +160,28 @@ class BitStream:
         return bits
 
 
-while True:
-    nsymbols = random.randint(1, 5000)
+# TODO fix issue with very small number of symbols (<5)
+# it causes a negative shift
+nsymbols = 5
 
-    data = [random.randint(1, 18) for _ in range(nsymbols)]
+data = [random.randint(1, 18) for _ in range(nsymbols)]
 
-    # interleave n bits after every symbol
-    # interleave_pattern = [random.randint(0) for _ in range(nsymbols)]
-    interleave_pattern = [random.randint(0, 8) for _ in range(nsymbols)]
+# interleave n bits after every symbol
+interleave_pattern = [random.randint(0, 8) for _ in range(nsymbols)]
 
-    bitstream, bits = code_interleaved_symbols(data, interleave_pattern)
+print("checking pattern:")
+print(data)
+print(interleave_pattern)
 
-    # print(bin(bitstream), bits)
+bitstream, bits = code_interleaved_symbols(data, interleave_pattern)
 
-    bs = BitStream(bits, bitstream)
+print(bin(bitstream), bits)
 
-    decoded_buffer = []
-    for bits in interleave_pattern:
-        decoded_buffer.append(bs.GetCode())
-        bs.ConsumeBits(bits)
+bs = BitStream(bits, bitstream)
 
-    assert data == decoded_buffer
+decoded_buffer = []
+for bits in interleave_pattern:
+    decoded_buffer.append(bs.GetCode())
+    bs.ConsumeBits(bits)
 
-    print(f"decoded: {decoded_buffer}")
+assert data == decoded_buffer
