@@ -106,8 +106,7 @@ impl<'a> BitReader<'a> {
             self.bitlen += 8;
         }
 
-        // shift with overflow happens with 0 bits as input
-        let code = (self.bitbuf >> (64 - bits)) as u16;
+        let code = self.bitbuf.rotate_left(bits) as u16;
         self.bitbuf <<= bits;
         self.bitlen -= bits;
         return Some(code);
