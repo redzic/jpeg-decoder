@@ -178,8 +178,6 @@ fn decode_matrix(
 ) -> [i16; 64] {
     let [ac_huff_tree, dc_huff_tree] = huff_trees;
 
-    // alright so apparently this unwrap is failing because we are just reading an invalid
-    // code, not because there are too many bits?
     let dc_bits = dc_huff_tree.read_code(bitreader).unwrap();
 
     // get N bits
@@ -193,8 +191,6 @@ fn decode_matrix(
     mcu_block[0] = dc_coeff;
 
     let mut idx = 1;
-
-    // What besides decoding bits takes up so much time in this function?
 
     loop {
         let symbol = ac_huff_tree.read_code(bitreader).unwrap();
