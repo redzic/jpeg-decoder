@@ -354,7 +354,7 @@ impl Decoder {
                 JpegMarker::DefineQuantizationTable => {
                     let mut len = read_u16(&mut self.reader)? as usize - 2;
                     // one DQT can actually define multiple quant tables
-                    // so porsche.jpg doesn't decode because it defines 2 quant
+                    // porsche.jpg is an example of this, it defines 2 quantization
                     // tables with one DQT marker
 
                     'dqt: loop {
