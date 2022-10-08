@@ -575,10 +575,10 @@ impl Decoder {
         // TODO refactor this into another function
         // so we can actually see wtf is taking up the time according
         // to perf.
-        fn ycbcr_to_rgb(y: f64, cb: f64, cr: f64) -> [u8; 3] {
-            let r = f64::mul_add(1.402, cr - 128.0, y);
-            let g = f64::mul_add(-0.71414, cr - 128.0, f64::mul_add(-0.34414, cb - 128.0, y));
-            let b = f64::mul_add(1.772, cb - 128.0, y);
+        fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> [u8; 3] {
+            let r = f32::mul_add(1.402, cr - 128.0, y);
+            let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
+            let b = f32::mul_add(1.772, cb - 128.0, y);
 
             let r = r as u8;
             let g = g as u8;
@@ -598,7 +598,7 @@ impl Decoder {
                 // cast dct coefficients to f64
                 for p in 0..3 {
                     for i in 0..64 {
-                        coeffs[p][i] = block[p][i] as f64;
+                        coeffs[p][i] = block[p][i] as f32;
                     }
                 }
 

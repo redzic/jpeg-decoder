@@ -8,7 +8,7 @@ unsafe fn cast_mut<const N: usize, T>(x: &mut [T]) -> &mut [T; N] {
     &mut *(x as *mut [T] as *mut [T; N])
 }
 
-fn transpose8x8(inm: &[f64; 64], outm: &mut [f64; 64]) {
+fn transpose8x8(inm: &[f32; 64], outm: &mut [f32; 64]) {
     for i in 0..8 {
         for j in 0..8 {
             outm[j * 8 + i] = inm[i * 8 + j];
@@ -16,7 +16,7 @@ fn transpose8x8(inm: &[f64; 64], outm: &mut [f64; 64]) {
     }
 }
 
-const COS_TABLE: [f64; 64] = [
+const COS_TABLE: [f32; 64] = [
     1.00000000000000000000000000000,
     0.980785280403230449126182236134,
     0.923879532511286756128183189397,
@@ -84,8 +84,8 @@ const COS_TABLE: [f64; 64] = [
 ];
 
 #[inline(always)]
-fn idct_1d(m_in: &[f64; 8], m_out: &mut [f64; 8]) {
-    const SQRT2_O2: f64 = 0.707106781186547524400844362105;
+fn idct_1d(m_in: &[f32; 8], m_out: &mut [f32; 8]) {
+    const SQRT2_O2: f32 = 0.707106781186547524400844362105;
 
     for n in 0..8 {
         let mut sum = 0.;
@@ -98,14 +98,14 @@ fn idct_1d(m_in: &[f64; 8], m_out: &mut [f64; 8]) {
             // this is going to slow down the code a lot in some cases,
             // since the codegen on the default x86 target is way worse.
 
-            // sum = f64::mul_add(s, m_in[k] * cos_table(n, k), sum)
+            // sum = f32::mul_add(s, m_in[k] * cos_table(n, k), sum)
             sum += s * m_in[k] * COS_TABLE[8 * n + k];
         }
         m_out[n] = sum * 0.5;
     }
 }
 
-pub fn idct(m_in: &[f64; 64], m_out: &mut [f64; 64]) {
+pub fn idct(m_in: &[f32; 64], m_out: &mut [f32; 64]) {
     unsafe {
         let mut transposed = [0.; 64];
         transpose8x8(m_in, &mut transposed);
