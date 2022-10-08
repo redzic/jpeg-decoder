@@ -1,3 +1,5 @@
+use std::arch::x86_64::*;
+
 #[inline(always)]
 unsafe fn cast<const N: usize, T>(x: &[T]) -> &[T; N] {
     &*(x as *const [T] as *const [T; N])
@@ -8,11 +10,84 @@ unsafe fn cast_mut<const N: usize, T>(x: &mut [T]) -> &mut [T; N] {
     &mut *(x as *mut [T] as *mut [T; N])
 }
 
-fn transpose8x8(inm: &[f32; 64], outm: &mut [f32; 64]) {
-    for i in 0..8 {
-        for j in 0..8 {
-            outm[j * 8 + i] = inm[i * 8 + j];
-        }
+// fn transpose8x8(inm: &[f32; 64], outm: &mut [f32; 64]) {
+//     for i in 0..8 {
+//         for j in 0..8 {
+//             outm[j * 8 + i] = inm[i * 8 + j];
+//         }
+//     }
+// }
+
+fn transpose8x8(input: &[f32; 64], into: &mut [f32; 64]) {
+    unsafe {
+        let input = [
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(0)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(1)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(2)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(3)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(4)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(5)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(6)),
+            _mm256_loadu_si256(input.as_ptr().cast::<__m256i>().add(7)),
+        ];
+
+        let stage1 = (
+            _mm256_unpacklo_epi32(input[0], input[1]),
+            _mm256_unpackhi_epi32(input[0], input[1]),
+            _mm256_unpacklo_epi32(input[2], input[3]),
+            _mm256_unpackhi_epi32(input[2], input[3]),
+            _mm256_unpacklo_epi32(input[4], input[5]),
+            _mm256_unpackhi_epi32(input[4], input[5]),
+            _mm256_unpacklo_epi32(input[6], input[7]),
+            _mm256_unpackhi_epi32(input[6], input[7]),
+        );
+
+        let stage2 = (
+            _mm256_unpacklo_epi64(stage1.0, stage1.2),
+            _mm256_unpackhi_epi64(stage1.0, stage1.2),
+            _mm256_unpacklo_epi64(stage1.1, stage1.3),
+            _mm256_unpackhi_epi64(stage1.1, stage1.3),
+            _mm256_unpacklo_epi64(stage1.4, stage1.6),
+            _mm256_unpackhi_epi64(stage1.4, stage1.6),
+            _mm256_unpacklo_epi64(stage1.5, stage1.7),
+            _mm256_unpackhi_epi64(stage1.5, stage1.7),
+        );
+
+        #[allow(clippy::identity_op)]
+        const LO: i32 = (2 << 4) | 0;
+        const HI: i32 = (3 << 4) | 1;
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(0),
+            _mm256_permute2x128_si256(stage2.0, stage2.4, LO),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(1),
+            _mm256_permute2x128_si256(stage2.1, stage2.5, LO),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(2),
+            _mm256_permute2x128_si256(stage2.2, stage2.6, LO),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(3),
+            _mm256_permute2x128_si256(stage2.3, stage2.7, LO),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(4),
+            _mm256_permute2x128_si256(stage2.0, stage2.4, HI),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(5),
+            _mm256_permute2x128_si256(stage2.1, stage2.5, HI),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(6),
+            _mm256_permute2x128_si256(stage2.2, stage2.6, HI),
+        );
+        _mm256_storeu_si256(
+            into.as_mut_ptr().cast::<__m256i>().add(7),
+            _mm256_permute2x128_si256(stage2.3, stage2.7, HI),
+        );
     }
 }
 
