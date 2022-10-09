@@ -261,14 +261,14 @@ fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> [u8; 3] {
     [r, g, b]
 }
 
-#[inline(never)]
-pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
+pub unsafe fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
     let bh = (h / 8) as usize;
     let bw = (w / 8) as usize;
 
     for y in 0..bh {
         for x in 0..bw {
-            let block = blocks[y * bw + x];
+            // let block = blocks[y * bw + x];
+            let block = *blocks.get_unchecked(y * bw + x);
 
             let mut coeffs = [[0.0; 64]; 3];
 
@@ -287,13 +287,14 @@ pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
 
             for y2 in 0..8 {
                 for x2 in 0..8 {
-                    let yp = out[0][y2 * 8 + x2] + 128.0;
-                    let cb = out[1][y2 * 8 + x2] + 128.0;
-                    let cr = out[2][y2 * 8 + x2] + 128.0;
+                    let yp = out[0].get_unchecked(y2 * 8 + x2) + 128.0;
+                    let cb = out[1].get_unchecked(y2 * 8 + x2) + 128.0;
+                    let cr = out[2].get_unchecked(y2 * 8 + x2) + 128.0;
 
                     let px = ycbcr_to_rgb(yp, cb, cr);
 
-                    buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..][..3]
+                    buf.get_unchecked_mut(3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..)
+                        .get_unchecked_mut(..3)
                         .copy_from_slice(&px)
                 }
             }
@@ -622,7 +623,9 @@ impl Decoder {
 
         let mut buf = vec![0; 3 * self.d.w as usize * self.d.h as usize];
 
-        to_rgb((self.d.w, self.d.h), &mut buf, &blocks);
+        unsafe {
+            to_rgb((self.d.w, self.d.h), &mut buf, &blocks);
+        }
 
         out_file.write_all(&buf).unwrap();
 
