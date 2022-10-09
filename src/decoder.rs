@@ -100,7 +100,7 @@ fn print_dst_quant_table(dst: u8) {
 }
 
 #[rustfmt::skip]
-const _ZIGZAG_ORDER: [usize; 64] = [
+static _ZIGZAG_ORDER: [u8; 64] = [
      0,  1,  8, 16,  9,  2,  3, 10,
     17, 24, 32, 25, 18, 11,  4,  5,
     12, 19, 26, 33, 40, 48, 41, 34,
@@ -112,7 +112,7 @@ const _ZIGZAG_ORDER: [usize; 64] = [
 ];
 
 #[rustfmt::skip]
-const ZIGZAG_DECODE_ORDER: [usize; 64] = [
+static ZIGZAG_DECODE_ORDER: [u8; 64] = [
     0,  1,  5,  6, 14, 15, 27, 28,
     2,  4,  7, 13, 16, 26, 29, 42,
     3,  8, 12, 17, 25, 30, 41, 43,
@@ -123,11 +123,23 @@ const ZIGZAG_DECODE_ORDER: [usize; 64] = [
    35, 36, 48, 49, 57, 58, 62, 63,
 ];
 
+// maybe also try seeing if separate zigzag simd from
+// x264 is faster than interleaving computation with huffman
+// decoding
+
+// also try partitioning the table into multiple parts
+// so that we can store an index with only 4 bits
+// or other similar tricks
+// although that would require shift instructions that aren't
+// currently necessary, but maybe it would be worth it in order
+// to reduce cache eviction and memory consumption?
+
+#[inline(never)]
 pub fn zigzag_descan(coeffs: &[i16; 64]) -> [i16; 64] {
     let mut new = [0; 64];
 
     for i in 0..64 {
-        new[i] = coeffs[ZIGZAG_DECODE_ORDER[i]];
+        new[i] = coeffs[ZIGZAG_DECODE_ORDER[i] as usize];
     }
 
     new
@@ -156,21 +168,22 @@ fn decode_mcu_block(
     // [component][is_dc]
 
     // TODO do not assume 3 components
-    let y = decode_matrix(&huff_trees[0], &quant_matrices[0], bitreader, &mut pred[0]);
-    let cr = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader, &mut pred[1]);
-    let cb = decode_matrix(&huff_trees[1], &quant_matrices[1], bitreader, &mut pred[2]);
+    let y = decode_dct_matrix(&huff_trees[0], &quant_matrices[0], bitreader, &mut pred[0]);
+    let cr = decode_dct_matrix(&huff_trees[1], &quant_matrices[1], bitreader, &mut pred[1]);
+    let cb = decode_dct_matrix(&huff_trees[1], &quant_matrices[1], bitreader, &mut pred[2]);
 
     [y, cr, cb]
 }
 
 // Call this function BEFORE doing zigzag descan
+#[inline(never)]
 fn dequantize(coeffs: &mut [i16; 64], quant_matrix: &[u8; 64]) {
     for i in 0..64 {
         coeffs[i] *= i16::from(quant_matrix[i]);
     }
 }
 
-fn decode_matrix(
+fn decode_dct_matrix(
     huff_trees: &[HuffmanTree; 2],
     quant_matrix: &[u8; 64],
     bitreader: &mut BitReader,
@@ -211,6 +224,7 @@ fn decode_matrix(
 
         idx += run_length as usize;
 
+        // TODO maybe do zigzag here?
         mcu_block[idx] = ac_coeff;
 
         idx += 1;
@@ -319,6 +333,7 @@ impl Decoder {
 
         let mut out_file = File::create("out.ppm").unwrap();
 
+        // Should not exist, only decoded buffer
         let mut blocks = Vec::new();
 
         // up to 4 components
