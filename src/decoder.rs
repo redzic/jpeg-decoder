@@ -250,9 +250,13 @@ pub fn print_huffman_code(is_dc: bool, symbol: u8, code: u16, bits: usize) {
 
 #[inline(always)]
 fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> [u8; 3] {
-    let r = f32::mul_add(1.402, cr - 128.0, y);
-    let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
-    let b = f32::mul_add(1.772, cb - 128.0, y);
+    // let r = f32::mul_add(1.402, cr - 128.0, y);
+    // let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
+    // let b = f32::mul_add(1.772, cb - 128.0, y);
+
+    let r = 1.402 * (cr - 128.0) + y;
+    let g = -0.71414 * (cr - 128.0) + -0.34414 * (cb - 128.0) + y;
+    let b = 1.772 * (cb - 128.0) + y;
 
     let r = r as u8;
     let g = g as u8;
