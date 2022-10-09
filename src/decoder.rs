@@ -248,6 +248,59 @@ pub fn print_huffman_code(is_dc: bool, symbol: u8, code: u16, bits: usize) {
     }
 }
 
+#[inline(always)]
+fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> [u8; 3] {
+    let r = f32::mul_add(1.402, cr - 128.0, y);
+    let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
+    let b = f32::mul_add(1.772, cb - 128.0, y);
+
+    let r = r as u8;
+    let g = g as u8;
+    let b = b as u8;
+
+    [r, g, b]
+}
+
+#[inline(never)]
+pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
+    let bh = (h / 8) as usize;
+    let bw = (w / 8) as usize;
+
+    for y in 0..bh {
+        for x in 0..bw {
+            let block = blocks[y * bw + x];
+
+            let mut coeffs = [[0.0; 64]; 3];
+
+            let mut out = [[0.0; 64]; 3];
+
+            // cast dct coefficients to f64
+            for p in 0..3 {
+                for i in 0..64 {
+                    coeffs[p][i] = block[p][i] as f32;
+                }
+            }
+
+            for p in 0..3 {
+                idct(&coeffs[p], &mut out[p]);
+            }
+
+            for y2 in 0..8 {
+                for x2 in 0..8 {
+                    let yp = out[0][y2 * 8 + x2] + 128.0;
+                    let cb = out[1][y2 * 8 + x2] + 128.0;
+                    let cr = out[2][y2 * 8 + x2] + 128.0;
+
+                    let px = ycbcr_to_rgb(yp, cb, cr);
+
+                    buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..][..3]
+                        .copy_from_slice(&px)
+                }
+            }
+        }
+    }
+}
+
 impl Decoder {
     pub fn new(file: File) -> Self {
         Decoder {
@@ -569,57 +622,7 @@ impl Decoder {
 
         let mut buf = vec![0; 3 * self.d.w as usize * self.d.h as usize];
 
-        let bh = (self.d.h / 8) as usize;
-        let bw = (self.d.w / 8) as usize;
-
-        // TODO refactor this into another function
-        // so we can actually see wtf is taking up the time according
-        // to perf.
-        fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> [u8; 3] {
-            let r = f32::mul_add(1.402, cr - 128.0, y);
-            let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
-            let b = f32::mul_add(1.772, cb - 128.0, y);
-
-            let r = r as u8;
-            let g = g as u8;
-            let b = b as u8;
-
-            [r, g, b]
-        }
-
-        for y in 0..bh {
-            for x in 0..bw {
-                let block = blocks[y * bw + x];
-
-                let mut coeffs = [[0.0; 64]; 3];
-
-                let mut out = [[0.0; 64]; 3];
-
-                // cast dct coefficients to f64
-                for p in 0..3 {
-                    for i in 0..64 {
-                        coeffs[p][i] = block[p][i] as f32;
-                    }
-                }
-
-                for p in 0..3 {
-                    idct(&coeffs[p], &mut out[p]);
-                }
-
-                for y2 in 0..8 {
-                    for x2 in 0..8 {
-                        let yp = out[0][y2 * 8 + x2] + 128.0;
-                        let cb = out[1][y2 * 8 + x2] + 128.0;
-                        let cr = out[2][y2 * 8 + x2] + 128.0;
-
-                        let px = ycbcr_to_rgb(yp, cb, cr);
-
-                        buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * self.d.w as usize + x2)..][..3]
-                            .copy_from_slice(&px)
-                    }
-                }
-            }
-        }
+        to_rgb((self.d.w, self.d.h), &mut buf, &blocks);
 
         out_file.write_all(&buf).unwrap();
 
