@@ -354,6 +354,8 @@ impl Decoder {
 
                     self.reader.seek_relative((len - 2) as i64)?;
 
+                    blocks.reserve((self.d.h / 8) as usize * (self.d.w / 8) as usize);
+
                     let mut bitreader = BitReader::new(&mut self.reader);
 
                     let mut dc_pred = [0; 3];
