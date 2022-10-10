@@ -263,14 +263,21 @@ pub fn print_huffman_code(is_dc: bool, symbol: u8, code: u16, bits: usize) {
 }
 
 #[inline(always)]
-fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> [u8; 3] {
+fn ycbcr_to_rgb(y: i32, cb: i32, cr: i32) -> [u8; 3] {
     // let r = f32::mul_add(1.402, cr - 128.0, y);
     // let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
     // let b = f32::mul_add(1.772, cb - 128.0, y);
 
-    let r = 1.402 * (cr - 128.0) + y;
-    let g = -0.71414 * (cr - 128.0) + -0.34414 * (cb - 128.0) + y;
-    let b = 1.772 * (cb - 128.0) + y;
+    // let r = 1.402 * (cr - 128.0) + y;
+    // let g = -0.71414 * (cr - 128.0) + -0.34414 * (cb - 128.0) + y;
+    // let b = 1.772 * (cb - 128.0) + y;
+
+    let r = y + (5743 * cr / 4096) - 735104;
+    // let r = y + ((5743 * cr) >> 12) - 735104;
+    let g = y + (-705 * cb / 2048) + (-2925 * cr / 4096) + 554880;
+    // let g = y + (-(705 * cb) >> 11) + ((-2925 * cr) >> 12) + 554880;
+    let b = y + (3629 * cb / 2048) - 929024;
+    // let b = y + ((3629 * cb) >> 11) - 929024;
 
     let r = r as u8;
     let g = g as u8;
@@ -305,14 +312,14 @@ pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
 
             for y2 in 0..8 {
                 for x2 in 0..8 {
-                    // let yp = out[0][y2 * 8 + x2] + 128.0;
-                    // let cb = out[1][y2 * 8 + x2] + 128.0;
-                    // let cr = out[2][y2 * 8 + x2] + 128.0;
+                    let yp = out[0][y2 * 8 + x2] + (128 << 12);
+                    let cb = out[1][y2 * 8 + x2] + (128 << 12);
+                    let cr = out[2][y2 * 8 + x2] + (128 << 12);
 
-                    // let px = ycbcr_to_rgb(yp, cb, cr);
+                    let px = ycbcr_to_rgb(yp, cb, cr);
 
-                    // buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..][..3]
-                    //     .copy_from_slice(&px)
+                    buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..][..3]
+                        .copy_from_slice(&px)
                 }
             }
         }
