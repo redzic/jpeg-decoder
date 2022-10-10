@@ -1,4 +1,5 @@
 from sympy import *
+import fp
 
 
 x = []
@@ -13,7 +14,14 @@ for x in x:
     n = x[0][0]
     k = x[0][1]
     # print(n, k, y)
-    print(f"({n},{k}) => {N(y,30)},")
+    # print(f"({n},{k}) => {N(y,30)},")
+
+    # pre-multiply
+    if k == 0:
+        y *= sqrt(2) / 2
+
+    # print(f"({n},{k}) => {N(y,30)},")
+    print(f"{N(y,30)},")
     # lut[n][k] = N(y, 30)
 
 # print(lut)
