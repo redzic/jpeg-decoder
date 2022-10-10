@@ -30,9 +30,10 @@ fn idct_1d(m_in: &[i32; 8], m_out: &mut [i32; 8]) {
     for n in 0..8 {
         let mut sum = 0;
         for k in 0..8 {
-            sum += (m_in[k] * COS_TABLE_INT[8 * n + k]) >> 12;
+            // sum += (m_in[k] * COS_TABLE_INT[8 * n + k]) >> 12;
+            // is there a way to do this without needing extra intermediate bits?
+            sum += ((m_in[k] as i64 * COS_TABLE_INT[8 * n + k] as i64) >> 12) as i32;
         }
-        // also try / 2 for i32
         m_out[n] = sum >> 1;
     }
 }
@@ -57,8 +58,5 @@ pub fn idct(m_in: &[i32; 64], m_out: &mut [i32; 64]) {
                 cast_mut(&mut m_out[8 * i..][..8]),
             );
         }
-
-        // TODO just curious if doing the transpose here
-        // also works (and removing the first transpose)
     }
 }

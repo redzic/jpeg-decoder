@@ -264,24 +264,13 @@ pub fn print_huffman_code(is_dc: bool, symbol: u8, code: u16, bits: usize) {
 
 #[inline(always)]
 fn ycbcr_to_rgb(y: i32, cb: i32, cr: i32) -> [u8; 3] {
-    // let r = f32::mul_add(1.402, cr - 128.0, y);
-    // let g = f32::mul_add(-0.71414, cr - 128.0, f32::mul_add(-0.34414, cb - 128.0, y));
-    // let b = f32::mul_add(1.772, cb - 128.0, y);
+    let r = 5743 * cr / 4096 + y - 735104;
+    let g = -705 * cb / 2048 - 2925 * cr / 4096 + y + 554880;
+    let b = 3629 * cb / 2048 + y - 929024;
 
-    // let r = 1.402 * (cr - 128.0) + y;
-    // let g = -0.71414 * (cr - 128.0) + -0.34414 * (cb - 128.0) + y;
-    // let b = 1.772 * (cb - 128.0) + y;
-
-    let r = y + (5743 * cr / 4096) - 735104;
-    // let r = y + ((5743 * cr) >> 12) - 735104;
-    let g = y + (-705 * cb / 2048) + (-2925 * cr / 4096) + 554880;
-    // let g = y + (-(705 * cb) >> 11) + ((-2925 * cr) >> 12) + 554880;
-    let b = y + (3629 * cb / 2048) - 929024;
-    // let b = y + ((3629 * cb) >> 11) - 929024;
-
-    let r = r as u8;
-    let g = g as u8;
-    let b = b as u8;
+    let r = (r >> 12) as u8;
+    let g = (g >> 12) as u8;
+    let b = (b >> 12) as u8;
 
     [r, g, b]
 }
@@ -302,7 +291,7 @@ pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
             // cast dct coefficients to f64
             for p in 0..3 {
                 for i in 0..64 {
-                    coeffs[p][i] = block[p][i] as i32;
+                    coeffs[p][i] = (block[p][i] as i32) << 12;
                 }
             }
 

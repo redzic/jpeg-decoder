@@ -45,29 +45,27 @@ def x2f(x):
 # so we have to bring it down to the original precision
 def mul(a, b):
     # return (a * b) >> dec
-    return (a * b) // (2**dec)
+    return (a * b) / (2**dec)
 
 
 # fixed = d2f(x1)
 # fixed2 = d2f(S(33) / 100)
 
 if __name__ == "__main__":
+    print(d2f(128))
+
     y = Symbol("y")
     cb = Symbol("cb")
     cr = Symbol("cr")
 
     # r = x2f(1.402) * (cr - x2f(128.0)) + y
-    r = mul(x2f(1.402), (cr - x2f(128.0))) + y
-    g = (
-        mul(x2f(-0.71414), (cr - x2f(128.0)))
-        + mul(x2f(-0.34414), (cb - x2f(128.0)))
-        + y
-    )
-    b = mul(x2f(1.772), (cb - x2f(128.0))) + y
+    r = mul(x2f(1.402), cr - x2f(128.0)) + y
+    g = mul(x2f(-0.71414), cr - x2f(128.0)) + mul(x2f(-0.34414), cb - x2f(128.0)) + y
+    b = mul(x2f(1.772), cb - x2f(128.0)) + y
 
-    print(r)
-    print(g)
-    print(b)
+    print(simplify(r))
+    print(simplify(g))
+    print(simplify(b))
 
     # fixed = mulfx(d2f(x1), d2f(x2))
     # fixed = d2f(x1)

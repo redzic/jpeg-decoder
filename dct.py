@@ -9,6 +9,7 @@ for n in range(8):
 
 # print(x)
 lut = [[0] * 8] * 8
+z = []
 for x in x:
     y = x[1]
     n = x[0][0]
@@ -21,8 +22,12 @@ for x in x:
         y *= sqrt(2) / 2
 
     # print(f"({n},{k}) => {fp.d2f(y)},")
-    print(f"{fp.d2f(y)},")
+    z.append(fp.d2f(y))
+    print(f"{z[-1]},")
     # print(f"{N(y,30)},")
     # lut[n][k] = N(y, 30)
+
+for a in z:
+    print(fp.f2f(a))
 
 # print(lut)
