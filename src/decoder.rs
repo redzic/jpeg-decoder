@@ -288,14 +288,14 @@ pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
         for x in 0..bw {
             let block = blocks[y * bw + x];
 
-            let mut coeffs = [[0.0; 64]; 3];
+            let mut coeffs = [[0; 64]; 3];
 
-            let mut out = [[0.0; 64]; 3];
+            let mut out = [[0; 64]; 3];
 
             // cast dct coefficients to f64
             for p in 0..3 {
                 for i in 0..64 {
-                    coeffs[p][i] = block[p][i] as f32;
+                    coeffs[p][i] = block[p][i] as i32;
                 }
             }
 
@@ -305,14 +305,14 @@ pub fn to_rgb((w, h): (u16, u16), buf: &mut [u8], blocks: &[[[i16; 64]; 3]]) {
 
             for y2 in 0..8 {
                 for x2 in 0..8 {
-                    let yp = out[0][y2 * 8 + x2] + 128.0;
-                    let cb = out[1][y2 * 8 + x2] + 128.0;
-                    let cr = out[2][y2 * 8 + x2] + 128.0;
+                    // let yp = out[0][y2 * 8 + x2] + 128.0;
+                    // let cb = out[1][y2 * 8 + x2] + 128.0;
+                    // let cr = out[2][y2 * 8 + x2] + 128.0;
 
-                    let px = ycbcr_to_rgb(yp, cb, cr);
+                    // let px = ycbcr_to_rgb(yp, cb, cr);
 
-                    buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..][..3]
-                        .copy_from_slice(&px)
+                    // buf[3 * (y * bw * 8 * 8 + 8 * x + y2 * w as usize + x2)..][..3]
+                    //     .copy_from_slice(&px)
                 }
             }
         }

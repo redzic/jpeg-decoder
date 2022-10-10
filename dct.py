@@ -20,8 +20,9 @@ for x in x:
     if k == 0:
         y *= sqrt(2) / 2
 
-    # print(f"({n},{k}) => {N(y,30)},")
-    print(f"{N(y,30)},")
+    # print(f"({n},{k}) => {fp.d2f(y)},")
+    print(f"{fp.d2f(y)},")
+    # print(f"{N(y,30)},")
     # lut[n][k] = N(y, 30)
 
 # print(lut)
